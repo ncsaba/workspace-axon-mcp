@@ -1,0 +1,91 @@
+{
+  "name": "Axon MCP Workspace",
+  "image": "devcontainer/axon-mcp:latest",
+  "remoteUser": "vscode",
+  "containerUser": "vscode",
+  "updateRemoteUserUID": true,
+  "workspaceFolder": "/workspaces/axon-mcp",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/axon-mcp,type=bind",
+  "remoteEnv": {
+    "SHELL": "/bin/bash",
+    "PGHOST": "/tmp/pgsocket",
+    "PGPORT": "5432",
+    "PGUSER": "indexer",
+    "PGDATABASE": "indexer",
+    "POSTGRES_DB_PASSWORD": "indexer",
+    "REDIS_PORT": "6379",
+    "REDIS_BIND_ADDRESS": "0.0.0.0"
+  },
+  "initializeCommand": "mkdir -p .devcontainer/vscode-server .devcontainer/services && touch .devcontainer/services/bash_history",
+  "mounts": [
+    "source=axon-mcp-venv,target=/home/vscode/.venv-dev,type=volume",
+    "source=axon-mcp-cache,target=/home/vscode/.cache,type=volume",
+    "source=axon-mcp-config,target=/home/vscode/.config,type=volume",
+    "source=${localWorkspaceFolder}/.devcontainer/vscode-server,target=/home/vscode/.vscode-server,type=bind",
+    "source=${localWorkspaceFolder}/.devcontainer/services,target=/home/vscode/services,type=bind",
+    "source=${localWorkspaceFolder}/.devcontainer/services/bash_history,target=/home/vscode/.bash_history,type=bind",
+    "source=/Users/csaba.nagy/.codex,target=/home/vscode/.codex,type=bind",
+    "source=/Users/csaba.nagy/dev/Axon.MCP.Server,target=/workspaces/axon-mcp/axon-src,type=bind",
+    "source=/Users/csaba.nagy/dev/vscode/extensions/kilocode,target=/workspaces/axon-mcp/external-inspiration/kilocode,type=bind,readonly"
+  ],
+  "postCreateCommand": "bash .devcontainer/scripts/bootstrap.sh && bash .devcontainer/scripts/init_postgres.sh && bash .devcontainer/scripts/init_redis.sh",
+  "postStartCommand": "bash .devcontainer/scripts/start_postgres.sh && bash .devcontainer/scripts/start_redis.sh",
+  "runArgs": [
+    "--label", "devcontainer.project=axon-mcp",
+    "--label", "devcontainer.workspace=axon-mcp",
+    "--interactive",
+    "--tty"
+  ],
+  "portsAttributes": {
+    ".*": {
+      "onAutoForward": "ignore"
+    },
+    "3000": {
+      "label": "UI Dev Server"
+    },
+    "5173": {
+      "label": "Vite Dev Server"
+    },
+    "8001": {
+      "label": "MCP Server"
+    },
+    "8080": {
+      "label": "API"
+    },
+    "5432": {
+      "label": "PostgreSQL"
+    },
+    "6379": {
+      "label": "Redis"
+    }
+  },
+  "forwardPorts": [
+    5432,
+    6379,
+    5173,
+    8001,
+    8080
+  ],
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "terminal.integrated.shell.linux": "/bin/bash",
+        "python.defaultInterpreterPath": "/home/vscode/.venv-dev/bin/python",
+        "python.terminal.activateEnvironment": true,
+        "python.terminal.activateEnvInCurrentTerminal": true
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "dbaeumer.vscode-eslint",
+        "kilocode.kilo-code",
+        "openai.chatgpt",
+        "fabiospampinato.vscode-highlight",
+        "shd101wyy.markdown-preview-enhanced",
+        "mechatroner.rainbow-csv",
+        "alefragnani.Bookmarks"
+      ]
+    }
+  }
+}

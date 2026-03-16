@@ -1,0 +1,11 @@
+# Dev container generated files
+.devcontainer/devcontainer.json
+.devcontainer/vscode-server
+.devcontainer/services
+
+# Mounted source directories (local paths)
+axon-src
+external-inspiration
+
+# Setup config (may contain local paths)
+.workspace-config.json
