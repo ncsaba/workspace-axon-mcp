@@ -1,0 +1,69 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Axon: Dev Install",
+      "type": "shell",
+      "command": "make dev-install",
+      "options": {
+        "cwd": "${workspaceFolder}/axon-src"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axon: Test",
+      "type": "shell",
+      "command": "make test",
+      "options": {
+        "cwd": "${workspaceFolder}/axon-src"
+      },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Axon: API Dev",
+      "type": "shell",
+      "command": "make api-dev",
+      "options": {
+        "cwd": "${workspaceFolder}/axon-src"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axon: MCP Dev",
+      "type": "shell",
+      "command": "make mcp-dev",
+      "options": {
+        "cwd": "${workspaceFolder}/axon-src"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axon: UI Dev",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": {
+        "cwd": "${workspaceFolder}/axon-src/ui"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axon: Docker Up",
+      "type": "shell",
+      "command": "make docker-up",
+      "options": {
+        "cwd": "${workspaceFolder}/axon-src"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axon: Docker Down",
+      "type": "shell",
+      "command": "make docker-down",
+      "options": {
+        "cwd": "${workspaceFolder}/axon-src"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
