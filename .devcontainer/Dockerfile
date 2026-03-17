@@ -9,7 +9,7 @@ ARG TARGETARCH
 COPY assets/node-v${NODE_VERSION}-linux-${TARGETARCH}.tar.gz /tmp/node.tar.gz
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates tar mc jq iputils-ping dnsutils postgresql-17 postgresql-17-pgvector redis-server \
+    && apt-get install -y --no-install-recommends ca-certificates tar mc jq iputils-ping dnsutils postgresql-17 postgresql-17-pgvector redis-server prometheus \
     && if [ "${TARGETARCH}" != "amd64" ] && [ "${TARGETARCH}" != "arm64" ]; then \
          echo "Unsupported architecture for pinned Node asset: ${TARGETARCH}" >&2; \
          exit 1; \
