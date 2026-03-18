@@ -28,11 +28,11 @@ Work was done on branch:
 
 Current HEAD:
 
-- `49ec883` - `Add retrieval alignment note for content separation branch`
+- `ad07476` - `Merge branch 'javampire' into file-instance-content-separation`
 
 Current worktree state:
 
-- additional uncommitted file/content-separation cleanup and validation updates are present beyond `49ec883`
+- uncommitted test-environment and documentation alignment updates are present beyond `ad07476`
 
 ## What Was Completed This Session
 
@@ -177,17 +177,16 @@ Validation completed:
 3. `python -m py_compile src/database/migrations/versions/cd4ad910d3fe_baseline_schema.py`
 4. manual DB reset succeeded via:
    - `python scripts/reset_db.py --yes`
-5. full suite passed with explicit DB env:
+5. full suite passed with the default devcontainer DB env (no manual DB exports):
 
 ```bash
-export DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer'
-export TEST_DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer'
+source /home/vscode/.venv-dev/bin/activate
 pytest tests/ -v -rs
 ```
 
 Result:
 
-- `430 passed`
+- `438 passed`
 
 ## Current State Snapshot
 
@@ -212,13 +211,14 @@ Result:
 
 ## Remaining Work
 
-The branch is no longer blocked on schema decoupling or broad lifecycle correctness.
+The branch is no longer blocked on schema decoupling, broad lifecycle correctness, or the shared-chunk association cut.
 
 The remaining work is primarily:
 
-1. doc closure and branch-status cleanup
-2. optional further canonical naming cleanup where local variables still use `FileInstance as File`
-3. deciding whether Phase 1 is explicitly closed before resuming the broader Java/parser track
+1. close branch-status docs and handover text so they match the shipped runtime
+2. finish the dedicated test-database defaults/documentation cleanup already in the worktree
+3. optionally continue canonical naming cleanup where local variables still use `FileInstance as File`
+4. resume the next product track after Phase 1 closure
 
 ### Write-path / lifecycle callers that remain intentionally explicit
 
@@ -234,7 +234,7 @@ These paths still query `File`/`FileInstance`, but they are not evidence of unfi
 
 Do **not** blindly add `active_file_filter()` everywhere.
 
-The remaining high-value work is not another grep-driven filter sweep. It is the schema/model cut that removes the need for retrieval code to depend on temporary chunk-to-symbol and chunk-to-instance ownership.
+The remaining high-value work is no longer another schema/model cut. The branch runtime is already past that point. The remaining branch-specific work is documentation closure plus the test-environment cleanup already in progress.
 
 ## Highest-Priority Next Work
 
@@ -242,13 +242,13 @@ The remaining high-value work is not another grep-driven filter sweep. It is the
    - mark shared-chunk association and reset-schema validation as landed everywhere
    - collapse stale references that still describe chunk/embed ownership removal as future work
 
-2. **Decide whether to treat Phase 1 as complete**
-   - if yes, shift the roadmap focus back to Java semantic parity and parser-platform work
-   - if no, define the exact residual scope rather than leaving a generic “still transitional” note
+2. **Finalize the dedicated test DB defaults**
+   - keep `TEST_DATABASE_URL` distinct from `DATABASE_URL`
+   - make the devcontainer defaults and test harness expectations consistent across docs, setup helpers, and tests
 
-3. **Keep migrations optional but coherent**
-   - preserve the Alembic path
-   - continue treating reset/recreate as the default WIP workflow while the branch stays unstable
+3. **Resume the next product track**
+   - treat Phase 1 as complete once docs and test-env cleanup are aligned
+   - shift roadmap focus back to Java semantic parity, parser-platform work, or the incremental indexing contract
 
 ## Recommended Next Session Plan
 
@@ -265,20 +265,20 @@ The remaining high-value work is not another grep-driven filter sweep. It is the
    - `file-instance-content-separation`
 
 3. Before running DB-backed tests:
+   - the devcontainer already exports `DATABASE_URL` and `TEST_DATABASE_URL`
+   - `TEST_DATABASE_URL` should remain pointed at the dedicated `indexer_test` database
    - use the explicit manual reset only if needed:
 
 ```bash
 cd /workspaces/axon-mcp/axon-src
 source /home/vscode/.venv-dev/bin/activate
-export DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer'
-export TEST_DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer'
 export DEBUG=false
 python scripts/reset_db.py --yes --use-test-db
 ```
 
-4. Then start with:
-   - the shared-chunk association design cut
-   - followed by the narrow retrieval/snippet query updates required by that cut
+4. Then continue with:
+   - doc closure and test-environment cleanup if still open
+   - otherwise the next roadmap track after Phase 1
 
 ## Useful References
 
@@ -296,30 +296,20 @@ python scripts/reset_db.py --yes --use-test-db
 
 This handover is the canonical continuation point for the next session.
 
-## New Continuation Point: Final Chunk-Sharing Cut
+## Continuation Point
 
-The branch is no longer primarily blocked on lifecycle/query cleanup. That work is now broadly landed and validated. The next hard blocker is the final shared-chunk model.
+Phase 1 runtime work is effectively complete on this branch:
 
-### What was just completed after the earlier handover
+1. lifecycle/query correctness is landed
+2. incremental git parity is restored
+3. shared-chunk association is landed
+4. reset-schema full-suite validation is green
 
-1. Incremental git parity was completed and validated.
-2. Full test suite was repaired and passed.
-3. High-value remaining lifecycle-blind read paths were patched:
-   - vector retrieval
-   - pattern detectors
-   - relationship builder helper path
-   - link-service endpoint context
-   - call-graph traversal root lookup
-4. Parse/embed orchestration was shifted from `changed_chunk_ids` toward `changed_content_ids`:
-   - parse workers now emit changed content IDs
-   - embedding refresh resolves chunks from `file_content_id`
-   - incremental sync embedding refresh now works from changed files' `current_content_id`
+The remaining branch-local work is:
 
-### Current blocker
-
-True multi-instance chunk sharing cannot be finished with small runtime edits because the schema still couples shared content artifacts back to instance-scoped symbols:
-
-- `chunks.symbol_id`
+1. close stale docs/handover text
+2. finish dedicated test-database defaults/documentation cleanup
+3. then move to the next roadmap priority outside the file/content-separation slice
 - `chunks.file_instance_id`
 - `embeddings.symbol_id`
 

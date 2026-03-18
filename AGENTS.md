@@ -157,10 +157,11 @@ Run from `/workspaces/axon-mcp/axon-src`:
 - Do not run `pytest` or `make test` inside the default sandbox for this workspace.
 - For agent-executed validation runs, request escalation and run tests outside sandbox.
 - If escalation is not desired, present the user the command line to run the tests manually and share the results.
-- Before running integration tests, always set DB env vars explicitly:
-  - `export DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer'`
-  - `export TEST_DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer'`
+- The devcontainer exports DB env vars by default:
+  - `DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer'`
+  - `TEST_DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer_test'`
+- Before running integration tests, ensure those env vars are present. Re-export them only if you intentionally override the defaults.
 - Mandatory pre-flight for any agent test run:
   1. Confirm command will run escalated (`sandbox_permissions=require_escalated`).
-  2. Include DB env exports in the same command for integration/DB tests.
+  2. Ensure the devcontainer DB env defaults are still in effect, or include explicit exports if overriding them.
   3. Use `-rs` on pytest when checking targeted integration tests so skip reasons are visible.

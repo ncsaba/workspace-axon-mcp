@@ -12,7 +12,10 @@
     "PGPORT": "5432",
     "PGUSER": "indexer",
     "PGDATABASE": "indexer",
+    "TEST_PGDATABASE": "indexer_test",
     "POSTGRES_DB_PASSWORD": "indexer",
+    "DATABASE_URL": "postgresql+asyncpg://indexer:indexer@localhost:5432/indexer",
+    "TEST_DATABASE_URL": "postgresql+asyncpg://indexer:indexer@localhost:5432/indexer_test",
     "REDIS_PORT": "6379",
     "REDIS_BIND_ADDRESS": "0.0.0.0"
   },

@@ -25,6 +25,7 @@ get_prop() {
 
 DB_PORT="${PGPORT:-$(get_prop 'domeus.dbport' '5432')}"
 DB_NAME="${PGDATABASE:-$(get_prop 'domeus.database' 'postgres')}"
+TEST_DB_NAME="${TEST_PGDATABASE:-${DB_NAME}_test}"
 DB_USER="${PGUSER:-$(get_prop 'domeus.username' 'postgres')}"
 DB_PASSWORD="${POSTGRES_DB_PASSWORD:-$(get_prop 'domeus.password' 'postgres')}"
 
@@ -80,12 +81,27 @@ else
   started_by_script=true
 fi
 
-PGPASSWORD="${DB_PASSWORD}" /usr/lib/postgresql/17/bin/psql -U "${DB_USER}" -p "${DB_PORT}" -h "${PGSOCKET_DIR}" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1 \
-  || PGPASSWORD="${DB_PASSWORD}" /usr/lib/postgresql/17/bin/psql -U "${DB_USER}" -p "${DB_PORT}" -h "${PGSOCKET_DIR}" -d postgres -c "CREATE DATABASE ${DB_NAME} OWNER ${DB_USER};"
+ensure_database() {
+  local db_name="$1"
+  PGPASSWORD="${DB_PASSWORD}" /usr/lib/postgresql/17/bin/psql \
+    -U "${DB_USER}" \
+    -p "${DB_PORT}" \
+    -h "${PGSOCKET_DIR}" \
+    -d postgres \
+    -tAc "SELECT 1 FROM pg_database WHERE datname='${db_name}'" | grep -q 1 \
+    || PGPASSWORD="${DB_PASSWORD}" /usr/lib/postgresql/17/bin/psql \
+      -U "${DB_USER}" \
+      -p "${DB_PORT}" \
+      -h "${PGSOCKET_DIR}" \
+      -d postgres \
+      -c "CREATE DATABASE ${db_name} OWNER ${DB_USER};"
+}
+
+ensure_database "${DB_NAME}"
+ensure_database "${TEST_DB_NAME}"
 
 if [[ "${started_by_script}" == "true" ]]; then
   /usr/lib/postgresql/17/bin/pg_ctl -D "${PGDATA}" -m fast -w stop
 fi
 
-echo "PostgreSQL initialized (db=${DB_NAME}, user=${DB_USER}, port=${DB_PORT})."
-
+echo "PostgreSQL initialized (db=${DB_NAME}, test_db=${TEST_DB_NAME}, user=${DB_USER}, port=${DB_PORT})."

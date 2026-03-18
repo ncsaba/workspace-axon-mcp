@@ -30,7 +30,7 @@
 | Component | Status | Details |
 | --- | --- | --- |
 | Python venv | `✅` | `/home/vscode/.venv-dev` |
-| PostgreSQL 17 + pgvector | `✅` | DB/user/password `indexer`, port `5432` |
+| PostgreSQL 17 + pgvector | `✅` | DB/user/password `indexer`, port `5432`, databases `indexer` and `indexer_test` are initialized by the devcontainer bootstrap |
 | Redis | `✅` | Auto-start with dev-container |
 | Celery worker | `🧭` | Installed; start manually when needed |
 
@@ -46,8 +46,13 @@ Configured defaults (via `.devcontainer/devcontainer.json` `remoteEnv`):
 - `PGUSER=indexer`
 - `POSTGRES_DB_PASSWORD=indexer`
 - `PGDATABASE=indexer`
+- `TEST_PGDATABASE=indexer_test`
 - `PGPORT=5432`
 - `PGHOST=/tmp/pgsocket`
+- `DATABASE_URL=postgresql+asyncpg://indexer:indexer@localhost:5432/indexer`
+- `TEST_DATABASE_URL=postgresql+asyncpg://indexer:indexer@localhost:5432/indexer_test`
+
+After a devcontainer rebuild/reopen, those env vars are already present in normal shells and tool runs.
 
 Data/log persistence:
 
@@ -111,12 +116,17 @@ Run from `axon-src`:
 
 ## Test Run Pre-Flight
 
-Use this for integration/DB-backed tests:
+The devcontainer now exports these by default for integration/DB-backed tests:
+
+```bash
+export DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer'
+export TEST_DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer_test'
+```
+
+In a normal devcontainer shell you usually only need:
 
 ```bash
 source /home/vscode/.venv-dev/bin/activate
-export DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer'
-export TEST_DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer'
 ```
 
 Manual schema reset, when explicitly needed:
@@ -127,7 +137,7 @@ source /home/vscode/.venv-dev/bin/activate
 python scripts/reset_db.py --yes --use-test-db
 ```
 
-This is intentionally manual-only and is not part of the test harness.
+This is intentionally manual-only and is not part of the test harness. The test harness creates and drops schema in `TEST_DATABASE_URL`, so it must remain separate from `DATABASE_URL`.
 
 Agent policy reminder:
 - Run tests only outside the default sandbox (escalated mode).
@@ -135,3 +145,4 @@ Agent policy reminder:
 ## Local Database DSN
 
 - `postgresql+asyncpg://indexer:indexer@localhost:5432/indexer`
+- `postgresql+asyncpg://indexer:indexer@localhost:5432/indexer_test`
