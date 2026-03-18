@@ -82,6 +82,20 @@ def expand_path(path_str: str) -> str:
     return os.path.expanduser(os.path.expandvars(path_str))
 
 
+def format_mount_source_path(path_str: str) -> str:
+    """
+    Format a host path for safe insertion into devcontainer mount JSON.
+
+    This normalizes Windows-style backslashes to forward slashes so values like
+    C:\\Users\\name\\repo do not create invalid JSON escape sequences. It then
+    applies JSON string escaping for extra safety.
+    """
+    normalized = str(path_str).replace("\\", "/")
+    # json.dumps returns a quoted JSON string; strip outer quotes for insertion
+    # into an already-quoted template placeholder.
+    return json.dumps(normalized)[1:-1]
+
+
 def validate_path(path_str: str, must_exist: bool = True, create_if_missing: bool = False) -> Optional[Path]:
     """
     Validate a path string.
@@ -462,10 +476,11 @@ def generate_devcontainer(
     # Build mount strings
     codex_mount = ""
     if ai_config["codex"]["enabled"]:
-        codex_path = ai_config["codex"]["path"]
+        codex_path = format_mount_source_path(ai_config["codex"]["path"])
         codex_mount = f',\n    "source={codex_path},target=/home/vscode/.codex,type=bind"'
-    
-    axon_src_mount = f',\n    "source={axon_src_path},target=/workspaces/axon-mcp/axon-src,type=bind"'
+
+    axon_src_mount_path = format_mount_source_path(axon_src_path)
+    axon_src_mount = f',\n    "source={axon_src_mount_path},target=/workspaces/axon-mcp/axon-src,type=bind"'
     
     kilocode_mount = ""
     if ai_config["kilocode"]["enabled"]:

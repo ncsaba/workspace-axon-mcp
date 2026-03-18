@@ -119,6 +119,16 @@ export DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer
 export TEST_DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer'
 ```
 
+Manual schema reset, when explicitly needed:
+
+```bash
+cd /workspaces/axon-mcp/axon-src
+source /home/vscode/.venv-dev/bin/activate
+python scripts/reset_db.py --yes --use-test-db
+```
+
+This is intentionally manual-only and is not part of the test harness.
+
 Agent policy reminder:
 - Run tests only outside the default sandbox (escalated mode).
 
