@@ -19,7 +19,7 @@ Build the strongest practical code indexer from this fork by combining:
 | --- | --- | --- |
 | C# / Roslyn runtime removal | `✅` | Runtime path removed; no backward-compat migration constraints. |
 | Runtime baseline (Py 3.11 + PG17/pgvector + Redis) | `✅` | Available in dev-container; Celery worker is manual start. |
-| File instance / content separation | `🚧` | Core ORM and lifecycle foundation landed; read-path cleanup and chunk/content consolidation are still active work. |
+| File instance / content separation | `🧭` | Lifecycle/query correctness, incremental git parity, content-ID-based refresh, shared-chunk association, and reset-schema full-suite validation are landed; remaining work is primarily branch-doc closure. |
 | Java discovery + parser routing | `✅` | `.java` is discovered and routed to `JavaParser`. |
 | Java semantic extraction depth | `🚧` | Basic symbols present; cross-file semantics not at target fidelity. |
 | Docs/config structural depth | `🚧` | Present but uneven across formats. |
@@ -51,20 +51,16 @@ Keep Axon's graph-centric architecture as the core and import these patterns fro
 | Phase | Status | Focus | Risk |
 | --- | --- | --- | --- |
 | A. Stabilize no-C# baseline | `✅` | Freeze current truth in docs and configs. | `🔥` drift if docs are not updated with code changes. |
-| B. File instance/content separation | `🧭` | Finish lifecycle-safe query semantics, active-instance read-path cleanup, and content-owned artifact consolidation. | `🔥` stale `MISSING` rows can leak into user-facing outputs until repo-wide query surfaces are classified. |
+| B. File instance/content separation | `🧭` | Close the branch docs and explicitly mark the shipped state now that the shared-chunk association cut and full reset-schema validation are landed. | `🔥` stale docs can hide the real branch state and cause redundant cleanup work. |
 | C. Java semantic parity | `🧭` | Imports/calls/endpoints/dependencies via language strategies after lifecycle/query correctness is stabilized. | `🔥` parser metadata may be insufficient for high precision at first pass. |
 | D. Unified parser platform | `🧭` | Central registry, capability flags, fallback chunking. | `🔥` refactor may cause temporary extractor regressions. |
 | E. Quality and ranking | `🧭` | Relation confidence and summary quality improvements. | `🔥` quality metrics require representative real repos. |
 
 ## Immediate Next Steps
 
-1. Classify the remaining `File` query surfaces by intended lifecycle semantics:
-   - default active-only user-facing reads
-   - lifecycle-aware operators/admin paths
-   - write-path/current-file logic that should remain explicit
-2. Finish the next batch of active-instance read-path cleanup in the highest-value user-facing/operator-facing surfaces.
-3. Continue chunk/content consolidation only where query-surface review exposes correctness gaps.
-4. Resume Java semantic parity work after lifecycle/read-path correctness is stable on this branch.
+1. Sync canonical docs/roadmaps to the shipped state and record that reset-schema validation plus the full suite are green on the current branch worktree.
+2. Decide whether to explicitly close the lifecycle/content branch phase now that the schema/runtime cut is landed.
+3. Resume Java semantic parity work once Phase B is marked complete.
 
 ## Reference Paths
 

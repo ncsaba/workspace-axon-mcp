@@ -4,11 +4,23 @@ All paths below are relative to `/workspaces/axon-mcp/axon-src` unless otherwise
 
 ## Session Focus
 
-This session shifted the active architecture track from older streaming-indexing follow-ups to the new:
+This session continued the active architecture track on:
 
 - **file instance / file content separation**
 - **run-ID-based missing-file tracking**
 - **soft deletion + TTL cleanup**
+
+and specifically advanced:
+
+- lifecycle validation beyond helper-level tests
+- broader active-instance read-path cleanup
+- manual-only database reset workflow for WIP validation
+- incremental git parity restoration
+- content-ID-based parse/embed orchestration
+- retrieval-safe alignment around transitional shared chunks
+- shared-chunk association cut and legacy ORM/runtime ownership removal
+- baseline migration alignment to the current instance/content schema
+- full reset-schema validation across unit + integration tests
 
 Work was done on branch:
 
@@ -16,151 +28,166 @@ Work was done on branch:
 
 Current HEAD:
 
-- `f418067` - `feat(indexing): add file instance/content lifecycle foundation`
+- `49ec883` - `Add retrieval alignment note for content separation branch`
+
+Current worktree state:
+
+- additional uncommitted file/content-separation cleanup and validation updates are present beyond `49ec883`
 
 ## What Was Completed This Session
 
-### 1) Architecture design and implementation plan
+### 1) Manual DB reset workflow retained as the default WIP schema path
 
-Created and updated the canonical docs for this track:
+Added a deliberate reset entrypoint instead of putting destructive reset behavior into the test harness:
 
-- `docs/architecture/file_instance_content_dedup_proposal.md`
-- `docs/architecture/file_instance_content_implementation_plan.md`
-- `docs/architecture/data_models.md`
-- `docs/index.md`
-- `docs/AXON_ANALYSIS_AND_ROADMAP.md`
+- `scripts/reset_db.py`
+- `Makefile` target: `db-reset`
 
-Key decisions now documented:
+Documentation updated:
 
-1. DB compatibility is **not** a constraint for this fork; reset/recreate is acceptable.
-2. Final symbol rows remain **instance-scoped**.
-3. Deleted-file handling uses:
-   - successful, strictly increasing repository run IDs
-   - `last_seen_run_id` stamping
-   - `ACTIVE -> MISSING` transition only after successful run completion
-   - TTL-based cleanup later
+- `README.md`
+- `/workspaces/axon-mcp/docs/workspace-notes.md`
 
-### 2) Core ORM/model foundation landed
+Key behavior:
 
-Implemented the foundational data model in `src/database/models.py`:
+1. reset is **manual only**
+2. requires `--yes`
+3. drops and recreates the `public` schema
+4. recreates pgvector extension and Axon tables
 
-- `RepositoryIndexRun`
-- `FileContent`
-- `FileInstance`
+### 2) DEBUG env parsing issue fixed
 
-Also added:
+Patched:
 
-- `RepositoryIndexRunStatusEnum`
-- `FileLifecycleStateEnum`
-
-Compatibility bridge:
-
-- `File = FileInstance`
-
-This keeps the existing import surface usable while the codebase transitions from file-centric queries.
-
-### 3) Run-ID allocation and missing finalization
-
-Implemented in `src/workers/sync_worker.py`:
-
-1. allocate a repository-scoped indexing run
-2. propagate `current_run_id` into pipeline metadata
-3. on successful sync only:
-   - mark older active file instances as `MISSING`
-4. on failed sync:
-   - mark run as failed
-   - skip missing finalization
-
-### 4) File instance/content upsert path
-
-Implemented in:
-
-- `src/workers/file_worker.py`
-- `src/workers/inventory_worker.py`
-- `src/workers/pipeline/steps/discovery_step.py`
-- `src/workers/pipeline/steps/parsing_step.py`
+- `src/config/settings.py`
 
 Behavior now:
 
-1. discovered/parsed files update `FileInstance`
-2. canonical content rows are created/reused in `FileContent`
-3. each observed file stamps:
-   - `last_seen_run_id`
-   - `last_seen_at`
-   - `lifecycle_state=ACTIVE`
-4. unchanged/hash-unchanged paths also reactivate previously missing rows
+- `DEBUG=release` is normalized to `False`
 
-### 5) Active-instance read-path cleanup
+Validation:
 
-Added:
+- `tests/unit/test_security_defaults.py`
 
-- `src/database/query_helpers.py`
+### 3) Lifecycle validation expanded
 
-This provides the default active-file filter used in key user-facing read paths.
+Added focused lifecycle integration coverage:
 
-Patched main surfaces:
+- `tests/integration/test_file_lifecycle_transitions.py`
 
-- `src/api/services/repository_service.py`
-- `src/api/services/statistics_service.py`
-- `src/api/services/symbol_service.py`
-- `src/api/services/search_service.py`
-- `src/mcp_server/tools/repository.py`
-- `src/mcp_server/tools/navigation.py`
-- `src/mcp_server/tools/search.py`
-- `src/workers/utils.py`
+Covered behaviors:
 
-Effect:
+1. stale active rows become `MISSING`
+2. `create_or_update_file()` reactivates previously missing files
+3. TTL cleanup removes expired missing rows
+4. orphaned `FileContent` rows created by the same cleanup pass are reclaimed
 
-- main repository stats
-- symbol listing/detail
-- keyword search
-- main MCP repository/search/navigation tools
-
-now default to `ACTIVE` file instances instead of returning `MISSING` rows.
-
-### 6) TTL cleanup worker
-
-Implemented:
+Patched cleanup behavior:
 
 - `src/workers/file_lifecycle_worker.py`
 
-Wired into:
+Important fix:
 
-- `src/workers/celery_app.py`
-- `src/workers/tasks.py`
-- `src/config/settings.py`
-- `src/utils/metrics.py`
+- orphan `FileContent` detection now happens **after** deleting expired missing instances in the same cleanup pass
 
-Behavior:
+### 4) Sync-worker lifecycle validation added
 
-1. find expired `MISSING` file instances older than TTL
-2. delete them in bounded batches
-3. reclaim orphaned `FileContent` rows with no referencing file instances
-4. emit cleanup metrics
-5. schedule daily cleanup via Celery beat
+Added sync-path tests:
 
-New settings:
+- `tests/integration/test_sync_lifecycle_transitions.py`
 
-- `file_instance_missing_ttl_days`
-- `file_instance_cleanup_batch_size`
+Covered behaviors:
+
+1. successful `_sync_repository_async()` marks stale active files as `MISSING`
+2. failed `_sync_repository_async()` marks the run/job as failed
+3. failed sync does **not** sweep active files to `MISSING`
+
+These tests stub the pipeline step implementations but run the real:
+
+- `src/workers/sync_worker.py`
+
+### 5) Additional active-instance read-path cleanup landed
+
+Previously patched surfaces already covered the main repository/search/navigation paths.
+
+This session additionally patched:
+
+- `src/api/routes/analysis.py`
+- `src/api/routes/enrichment.py`
+- `src/mcp_server/resources/handlers.py`
+- `src/mcp_server/tools/architecture.py`
+- `src/services/link_service.py`
+- `src/extractors/relationship_builder.py`
+- `src/utils/system_context_generator.py`
+- `src/utils/project_mapper.py`
+- `src/utils/module_identifier.py`
+- `src/workers/enrichment_worker.py`
+
+Effect:
+
+- more user-facing and admin-facing surfaces now consistently exclude `MISSING` file instances by default
+
+### 6) Shared-chunk association cut landed
+
+Runtime/schema changes completed:
+
+- `ChunkSymbolLink` is the association layer for shared chunks
+- `Chunk.symbol_id` removed from ORM/runtime
+- `Chunk.file_instance_id` removed from ORM/runtime
+- `Embedding.symbol_id` removed from ORM/runtime
+
+Key files:
+
+- `src/database/models.py`
+- `src/extractors/knowledge_extractor.py`
+- `src/api/services/search_service.py`
+- `src/mcp_server/tools/symbols.py`
+- `src/utils/call_graph_traversal.py`
+- `src/vector_store/pgvector_store.py`
+
+### 7) Legacy compatibility removal completed at the ORM layer
+
+Completed:
+
+- `File = FileInstance` alias removed from `src/database/models.py`
+- ORM `file_id` compatibility synonyms removed
+- remaining source imports now explicitly use `FileInstance as File` where local naming is still convenient
+
+### 8) Optional Alembic baseline aligned to the current ORM schema
+
+The migration path remains available, but the retained baseline now matches the current file/content model:
+
+- `src/database/migrations/versions/cd4ad910d3fe_baseline_schema.py`
+
+It now creates:
+
+- `repository_index_runs`
+- `file_contents`
+- `file_instances`
+- `file_instance_id`-based dependent tables
+
+instead of the old `files` / `file_id` compatibility shape.
 
 ## Validation Performed
 
-No full pytest or integration suite was run in this session.
+Validation completed:
 
-Focused validation completed:
+1. `python -m compileall -q src`
+2. `python -m compileall -q tests`
+3. `python -m py_compile src/database/migrations/versions/cd4ad910d3fe_baseline_schema.py`
+4. manual DB reset succeeded via:
+   - `python scripts/reset_db.py --yes`
+5. full suite passed with explicit DB env:
 
-1. `py_compile` passed for the edited modules
-2. model imports passed after the ORM rewrite
-3. worker imports passed after forcing `DEBUG=false`
-4. cleanup worker imports passed
+```bash
+export DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer'
+export TEST_DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer'
+pytest tests/ -v -rs
+```
 
-Important environment note discovered during validation:
+Result:
 
-- current settings parsing fails if environment contains `DEBUG=release`
-- overriding with `DEBUG=false` allowed import checks to run cleanly
-
-This is an existing environment/config issue, not caused by the file instance/content refactor.
+- `430 passed`
 
 ## Current State Snapshot
 
@@ -168,39 +195,60 @@ This is an existing environment/config issue, not caused by the file instance/co
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| File instance/content architecture docs | `✅` | Canonical design + implementation plan now in docs |
-| Core ORM entities (`RepositoryIndexRun`, `FileInstance`, `FileContent`) | `✅` | Landed with compatibility aliasing |
-| Run-ID stamping through sync/discovery/parsing path | `✅` | `current_run_id` now threaded through main write path |
+| File instance/content architecture docs | `✅` | Canonical design + implementation plan are current |
+| Core ORM entities (`RepositoryIndexRun`, `FileInstance`, `FileContent`) | `✅` | Landed |
+| Run-ID stamping through sync/discovery/parsing path | `✅` | `current_run_id` is threaded through main write path |
 | Successful-run missing finalization | `✅` | Older active rows become `MISSING` only after successful sync |
-| Main API/MCP active-instance filtering | `🚧` | Key user-facing surfaces patched; broader codebase still has file-centric queries |
-| TTL cleanup worker and beat schedule | `✅` | Worker/task/metrics/config landed |
-| Full content-owned chunk model | `🚧` | Transitional state only; `file_content_id` exists in chunk path but not all surfaces are consolidated |
-| Full integration validation of delete/reintroduce/cleanup flow | `🧭` | Not yet executed |
+| Failed-run no-sweep behavior | `✅` | Verified by sync-path integration test |
+| Reactivation of previously missing files | `✅` | Verified by lifecycle integration test |
+| TTL cleanup worker and orphan content reclamation | `✅` | Verified by lifecycle integration test |
+| Manual DB reset workflow | `✅` | Explicit script added; no automatic test reset |
+| Main + secondary active-instance read paths | `✅` | User-facing, retrieval-facing, and most repository-wide read paths now exclude `MISSING` instances by default |
+| Incremental git sync parity with lifecycle/content model | `✅` | Incremental sync now uses lifecycle-aware instance/content handling and restores downstream enrichment stages |
+| Parse/embed orchestration via `changed_content_ids` | `✅` | Discovery, parsing, embedding, and incremental sync now use content IDs as the durable refresh contract |
+| Shared-chunk association model | `✅` | `ChunkSymbolLink` landed and transitional chunk/embed ownership columns are removed from ORM/runtime |
+| Optional Alembic baseline coherence | `✅` | Baseline migration file now matches the current instance/content schema |
+| Full unit + integration validation on reset schema | `✅` | Current worktree passes `pytest tests/ -v -rs` against reset local Postgres |
 
-## Open Technical Work
+## Remaining Work
 
-### Highest priority
+The branch is no longer blocked on schema decoupling or broad lifecycle correctness.
 
-1. **Broader read-path cleanup**
-   - many remaining utilities/services still query `File` rows without active-state filtering
-   - use `src/database/query_helpers.py` as the default pattern
+The remaining work is primarily:
 
-2. **Integration validation for lifecycle behavior**
-   - successful deletion -> `MISSING`
-   - failed run -> no missing sweep
-   - reintroduced file -> back to `ACTIVE`
-   - TTL cleanup removes expired missing rows
-   - orphan `FileContent` rows are reclaimed safely
+1. doc closure and branch-status cleanup
+2. optional further canonical naming cleanup where local variables still use `FileInstance as File`
+3. deciding whether Phase 1 is explicitly closed before resuming the broader Java/parser track
 
-3. **Chunk/content consolidation**
-   - current model is still transitional
-   - continue moving chunk/embedding usage toward true content ownership
+### Write-path / lifecycle callers that remain intentionally explicit
 
-### Secondary
+These paths still query `File`/`FileInstance`, but they are not evidence of unfinished user-facing lifecycle filtering:
 
-4. Handle the `DEBUG=release` settings parsing issue cleanly
-5. Continue the remaining repository/service/query cleanup outside the main API/MCP surfaces
-6. Revisit whether some content-derived parse-pattern cache is useful later; do **not** move final symbols to content scope
+1. `src/workers/inventory_worker.py`
+2. `src/workers/file_worker.py`
+3. `src/workers/file_lifecycle_worker.py`
+4. `src/workers/sync_worker.py`
+5. `src/workers/incremental_sync.py`
+
+### Notable distinction
+
+Do **not** blindly add `active_file_filter()` everywhere.
+
+The remaining high-value work is not another grep-driven filter sweep. It is the schema/model cut that removes the need for retrieval code to depend on temporary chunk-to-symbol and chunk-to-instance ownership.
+
+## Highest-Priority Next Work
+
+1. **Close the Phase 1 docs explicitly**
+   - mark shared-chunk association and reset-schema validation as landed everywhere
+   - collapse stale references that still describe chunk/embed ownership removal as future work
+
+2. **Decide whether to treat Phase 1 as complete**
+   - if yes, shift the roadmap focus back to Java semantic parity and parser-platform work
+   - if no, define the exact residual scope rather than leaving a generic “still transitional” note
+
+3. **Keep migrations optional but coherent**
+   - preserve the Alembic path
+   - continue treating reset/recreate as the default WIP workflow while the branch stays unstable
 
 ## Recommended Next Session Plan
 
@@ -216,19 +264,105 @@ This is an existing environment/config issue, not caused by the file instance/co
 2. Stay on branch:
    - `file-instance-content-separation`
 
-3. Start with:
-   - integration-style validation for file lifecycle transitions
-   - then patch remaining active-instance read paths found during that validation
+3. Before running DB-backed tests:
+   - use the explicit manual reset only if needed:
+
+```bash
+cd /workspaces/axon-mcp/axon-src
+source /home/vscode/.venv-dev/bin/activate
+export DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer'
+export TEST_DATABASE_URL='postgresql+asyncpg://indexer:indexer@localhost:5432/indexer'
+export DEBUG=false
+python scripts/reset_db.py --yes --use-test-db
+```
+
+4. Then start with:
+   - the shared-chunk association design cut
+   - followed by the narrow retrieval/snippet query updates required by that cut
 
 ## Useful References
 
 - Branch: `file-instance-content-separation`
-- Commit: `f418067`
+- HEAD: `49ec883`
 - Design doc: `docs/architecture/file_instance_content_dedup_proposal.md`
 - Implementation plan: `docs/architecture/file_instance_content_implementation_plan.md`
+- Manual DB reset: `scripts/reset_db.py`
 - Core model file: `src/database/models.py`
 - Run finalization: `src/workers/sync_worker.py`
 - File upsert path: `src/workers/file_worker.py`
 - Cleanup worker: `src/workers/file_lifecycle_worker.py`
+- Lifecycle tests: `tests/integration/test_file_lifecycle_transitions.py`
+- Sync lifecycle tests: `tests/integration/test_sync_lifecycle_transitions.py`
 
 This handover is the canonical continuation point for the next session.
+
+## New Continuation Point: Final Chunk-Sharing Cut
+
+The branch is no longer primarily blocked on lifecycle/query cleanup. That work is now broadly landed and validated. The next hard blocker is the final shared-chunk model.
+
+### What was just completed after the earlier handover
+
+1. Incremental git parity was completed and validated.
+2. Full test suite was repaired and passed.
+3. High-value remaining lifecycle-blind read paths were patched:
+   - vector retrieval
+   - pattern detectors
+   - relationship builder helper path
+   - link-service endpoint context
+   - call-graph traversal root lookup
+4. Parse/embed orchestration was shifted from `changed_chunk_ids` toward `changed_content_ids`:
+   - parse workers now emit changed content IDs
+   - embedding refresh resolves chunks from `file_content_id`
+   - incremental sync embedding refresh now works from changed files' `current_content_id`
+
+### Current blocker
+
+True multi-instance chunk sharing cannot be finished with small runtime edits because the schema still couples shared content artifacts back to instance-scoped symbols:
+
+- `chunks.symbol_id`
+- `chunks.file_instance_id`
+- `embeddings.symbol_id`
+
+These fields make one chunk effectively belong to one symbol/file context, which conflicts with the intended “many file instances can reuse one chunk” model.
+
+### Next required implementation plan
+
+1. Add a shared association layer such as `chunk_symbol_links`:
+   - `chunk_id`
+   - `symbol_id`
+   - optional `file_instance_id` shortcut
+2. Update chunk creation in `src/extractors/knowledge_extractor.py`:
+   - create/reuse chunks by content identity
+   - create association rows per symbol instance
+3. Update retrieval/search/snippet callers that currently use `Chunk.symbol_id`:
+   - `src/api/services/search_service.py`
+   - `src/mcp_server/tools/symbols.py`
+   - `src/utils/call_graph_traversal.py`
+4. Update embedding ownership expectations:
+   - `src/vector_store/pgvector_store.py`
+   - decide whether `Embedding.symbol_id` becomes derived/optional or is removed
+5. Only then remove runtime reliance on `Chunk.file_instance_id`
+
+### Recommendation
+
+Treat the branch as having completed the lifecycle/query-correctness wave. Start the next session with the schema/model cut above rather than continuing to chase more read-path filters.
+
+### Parallel Retrieval Coordination Note
+
+The next session also needs to account for retrieval / semantic-search work being
+developed in parallel.
+
+Practical rule:
+
+1. Prefer changes that can merge cleanly with the parallel retrieval branch.
+2. Avoid unnecessary edits in retrieval-owned files unless the schema/model cut
+   truly requires them.
+3. When changes are required in shared retrieval surfaces, prefer narrow
+   compatibility-preserving edits over broad refactors.
+4. Use `/workspaces/axon-mcp/axon-src/docs/architecture/retrieval_parallel_alignment_note.md`
+   as the coordination contract before touching retrieval-adjacent code.
+
+Goal:
+
+- keep the upcoming shared-chunk schema work mergeable with the parallel retrieval
+  improvements with as little conflict as possible.
