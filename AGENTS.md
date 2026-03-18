@@ -5,7 +5,7 @@ Work from the mounted paths below, not from generated cache folders.
 
 ## IMPORTANT: Current Session Handover (Read First)
 
-- Canonical handover: `/workspaces/axon-mcp/axon-src/docs/SESSION_HANDOVER.md`
+- Canonical handover: `/workspaces/axon-mcp/docs/SESSION_HANDOVER.md`
 - Before starting implementation, read this handover after the mandatory reading list.
 
 ## IMPORTANT: Test Run Monitoring
@@ -52,7 +52,7 @@ Development model section map (quick onboarding):
 - Docs entry: `/workspaces/axon-mcp/axon-src/docs/index.md`
 - Analysis + roadmap: `/workspaces/axon-mcp/axon-src/docs/AXON_ANALYSIS_AND_ROADMAP.md`
 - Parser capability matrix: `/workspaces/axon-mcp/axon-src/docs/architecture/parser_capability_matrix.md`
-- Latest session handover: `/workspaces/axon-mcp/axon-src/docs/SESSION_HANDOVER.md`
+- Latest session handover: `/workspaces/axon-mcp/docs/SESSION_HANDOVER.md`
 
 ### Axon source hotspots
 - Parser routing: `/workspaces/axon-mcp/axon-src/src/parsers/__init__.py`
