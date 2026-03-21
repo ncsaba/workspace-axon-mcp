@@ -165,3 +165,27 @@ Run from `/workspaces/axon-mcp/axon-src`:
   1. Confirm command will run escalated (`sandbox_permissions=require_escalated`).
   2. Ensure the devcontainer DB env defaults are still in effect, or include explicit exports if overriding them.
   3. Use `-rs` on pytest when checking targeted integration tests so skip reasons are visible.
+
+## Benchmark/Validation Runs
+
+When the user asks to run benchmarks or retrieval quality validation:
+
+1. **Read the lessons learned first**: `/workspaces/axon-mcp/axon-src/docs/python_retrieval_validation_lessons_learned.md`
+   - This document captures common issues and their solutions
+   - Prevents repeating the same troubleshooting steps
+
+2. **Use the validation script**: `/workspaces/axon-mcp/axon-src/scripts/validate_python_retrieval.py`
+   - The script includes automated pre-flight checks
+   - It will warn about common configuration issues before starting services
+
+3. **Key issues to watch for**:
+   - API and Celery must use the same database (test vs production)
+   - Celery worker must listen to all required queues
+   - Authentication must be disabled for development runs
+   - Schema resets require enum type handling
+
+4. **Typical validation command**:
+   ```bash
+   cd /workspaces/axon-mcp/axon-src
+   python scripts/validate_python_retrieval.py --start-services
+   ```

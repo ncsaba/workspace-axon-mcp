@@ -4,189 +4,62 @@ All paths below are relative to `/workspaces/axon-mcp/axon-src` unless otherwise
 
 ## Session Focus
 
-This session continued the active architecture track on:
+This session continues from the completed architecture work on:
 
-- **file instance / file content separation**
-- **run-ID-based missing-file tracking**
-- **soft deletion + TTL cleanup**
+- **file instance / file content separation** ✅ MERGED
+- **run-ID-based missing-file tracking** ✅ MERGED
+- **soft deletion + TTL cleanup** ✅ MERGED
+- **shared-chunk association** ✅ MERGED
 
-and specifically advanced:
+Current branch:
 
-- lifecycle validation beyond helper-level tests
-- broader active-instance read-path cleanup
-- manual-only database reset workflow for WIP validation
-- incremental git parity restoration
-- content-ID-based parse/embed orchestration
-- retrieval-safe alignment around transitional shared chunks
-- shared-chunk association cut and legacy ORM/runtime ownership removal
-- baseline migration alignment to the current instance/content schema
-- full reset-schema validation across unit + integration tests
-
-Work was done on branch:
-
-- `file-instance-content-separation`
+- `master`
 
 Current HEAD:
 
-- `ad07476` - `Merge branch 'javampire' into file-instance-content-separation`
+- `179f312` - `feat: land python parity quick wins`
 
-Current worktree state:
+## What Was Completed (Previous Sessions)
 
-- uncommitted test-environment and documentation alignment updates are present beyond `ad07476`
+### Phase 1: File Instance/Content Separation ✅ COMPLETE
 
-## What Was Completed This Session
+All work from the `file-instance-content-separation` branch has been merged into `master`:
 
-### 1) Manual DB reset workflow retained as the default WIP schema path
+1. **Manual DB reset workflow** - `scripts/reset_db.py` with `--yes` flag
+2. **DEBUG env parsing fix** - `DEBUG=release` normalized to `False`
+3. **Lifecycle validation** - `tests/integration/test_file_lifecycle_transitions.py`
+4. **Sync-worker lifecycle validation** - `tests/integration/test_sync_lifecycle_transitions.py`
+5. **Active-instance read-path cleanup** - User-facing surfaces exclude `MISSING` instances
+6. **Shared-chunk association cut** - `ChunkSymbolLink` is the association layer
+7. **Legacy compatibility removal** - `File = FileInstance` alias removed, `file_id` synonyms removed
+8. **Alembic baseline alignment** - Matches current instance/content schema
+9. **Test DB defaults alignment** - `TEST_DATABASE_URL` distinct from `DATABASE_URL`
 
-Added a deliberate reset entrypoint instead of putting destructive reset behavior into the test harness:
+### Phase 2: Python Semantic Parity 🚧 IN PROGRESS
 
-- `scripts/reset_db.py`
-- `Makefile` target: `db-reset`
+Recent commits landed Python quick wins:
 
-Documentation updated:
+1. **Python import graph** - `IMPORTS` edges for intra-repo imports
+2. **Python call graph strategy** - `CALLS` edges without tree-sitter-only assumptions
+3. **Python endpoint extraction** - FastAPI/Flask baseline endpoint extraction
+4. **Python decorator-aware retrieval chunk slice**
+5. **Call-neighbor retrieval chunk context**
 
-- `README.md`
-- `/workspaces/axon-mcp/docs/workspace-notes.md`
+Key files added/modified:
 
-Key behavior:
+- `src/extractors/api_extractor.py` - API endpoint extraction
+- `src/extractors/call_analyzer.py` - Call analysis utilities
+- `src/extractors/call_graph_builder.py` - Call graph construction
+- `src/extractors/import_resolver.py` - Import resolution
+- `src/extractors/path_resolver.py` - Path resolution
+- `src/parsers/python_parser.py` - Python parser enhancements
+- `src/embeddings/symbol_chunker.py` - Symbol chunking improvements
 
-1. reset is **manual only**
-2. requires `--yes`
-3. drops and recreates the `public` schema
-4. recreates pgvector extension and Axon tables
+Integration tests added:
 
-### 2) DEBUG env parsing issue fixed
-
-Patched:
-
-- `src/config/settings.py`
-
-Behavior now:
-
-- `DEBUG=release` is normalized to `False`
-
-Validation:
-
-- `tests/unit/test_security_defaults.py`
-
-### 3) Lifecycle validation expanded
-
-Added focused lifecycle integration coverage:
-
-- `tests/integration/test_file_lifecycle_transitions.py`
-
-Covered behaviors:
-
-1. stale active rows become `MISSING`
-2. `create_or_update_file()` reactivates previously missing files
-3. TTL cleanup removes expired missing rows
-4. orphaned `FileContent` rows created by the same cleanup pass are reclaimed
-
-Patched cleanup behavior:
-
-- `src/workers/file_lifecycle_worker.py`
-
-Important fix:
-
-- orphan `FileContent` detection now happens **after** deleting expired missing instances in the same cleanup pass
-
-### 4) Sync-worker lifecycle validation added
-
-Added sync-path tests:
-
-- `tests/integration/test_sync_lifecycle_transitions.py`
-
-Covered behaviors:
-
-1. successful `_sync_repository_async()` marks stale active files as `MISSING`
-2. failed `_sync_repository_async()` marks the run/job as failed
-3. failed sync does **not** sweep active files to `MISSING`
-
-These tests stub the pipeline step implementations but run the real:
-
-- `src/workers/sync_worker.py`
-
-### 5) Additional active-instance read-path cleanup landed
-
-Previously patched surfaces already covered the main repository/search/navigation paths.
-
-This session additionally patched:
-
-- `src/api/routes/analysis.py`
-- `src/api/routes/enrichment.py`
-- `src/mcp_server/resources/handlers.py`
-- `src/mcp_server/tools/architecture.py`
-- `src/services/link_service.py`
-- `src/extractors/relationship_builder.py`
-- `src/utils/system_context_generator.py`
-- `src/utils/project_mapper.py`
-- `src/utils/module_identifier.py`
-- `src/workers/enrichment_worker.py`
-
-Effect:
-
-- more user-facing and admin-facing surfaces now consistently exclude `MISSING` file instances by default
-
-### 6) Shared-chunk association cut landed
-
-Runtime/schema changes completed:
-
-- `ChunkSymbolLink` is the association layer for shared chunks
-- `Chunk.symbol_id` removed from ORM/runtime
-- `Chunk.file_instance_id` removed from ORM/runtime
-- `Embedding.symbol_id` removed from ORM/runtime
-
-Key files:
-
-- `src/database/models.py`
-- `src/extractors/knowledge_extractor.py`
-- `src/api/services/search_service.py`
-- `src/mcp_server/tools/symbols.py`
-- `src/utils/call_graph_traversal.py`
-- `src/vector_store/pgvector_store.py`
-
-### 7) Legacy compatibility removal completed at the ORM layer
-
-Completed:
-
-- `File = FileInstance` alias removed from `src/database/models.py`
-- ORM `file_id` compatibility synonyms removed
-- remaining source imports now explicitly use `FileInstance as File` where local naming is still convenient
-
-### 8) Optional Alembic baseline aligned to the current ORM schema
-
-The migration path remains available, but the retained baseline now matches the current file/content model:
-
-- `src/database/migrations/versions/cd4ad910d3fe_baseline_schema.py`
-
-It now creates:
-
-- `repository_index_runs`
-- `file_contents`
-- `file_instances`
-- `file_instance_id`-based dependent tables
-
-instead of the old `files` / `file_id` compatibility shape.
-
-## Validation Performed
-
-Validation completed:
-
-1. `python -m compileall -q src`
-2. `python -m compileall -q tests`
-3. `python -m py_compile src/database/migrations/versions/cd4ad910d3fe_baseline_schema.py`
-4. manual DB reset succeeded via:
-   - `python scripts/reset_db.py --yes`
-5. full suite passed with the default devcontainer DB env (no manual DB exports):
-
-```bash
-source /home/vscode/.venv-dev/bin/activate
-pytest tests/ -v -rs
-```
-
-Result:
-
-- `438 passed`
+- `tests/integration/test_python_api_endpoint_extraction.py`
+- `tests/integration/test_python_call_relationships.py`
+- `tests/integration/test_python_import_relationships.py`
 
 ## Current State Snapshot
 
@@ -194,61 +67,78 @@ Result:
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| File instance/content architecture docs | `✅` | Canonical design + implementation plan are current |
-| Core ORM entities (`RepositoryIndexRun`, `FileInstance`, `FileContent`) | `✅` | Landed |
-| Run-ID stamping through sync/discovery/parsing path | `✅` | `current_run_id` is threaded through main write path |
-| Successful-run missing finalization | `✅` | Older active rows become `MISSING` only after successful sync |
+| File instance/content architecture | `✅` | Merged into master |
+| Core ORM entities | `✅` | `RepositoryIndexRun`, `FileInstance`, `FileContent`, `ChunkSymbolLink` |
+| Run-ID stamping through sync/discovery/parsing path | `✅` | `current_run_id` threaded through main write path |
+| Successful-run missing finalization | `✅` | Older active rows become `MISSING` after successful sync |
 | Failed-run no-sweep behavior | `✅` | Verified by sync-path integration test |
 | Reactivation of previously missing files | `✅` | Verified by lifecycle integration test |
 | TTL cleanup worker and orphan content reclamation | `✅` | Verified by lifecycle integration test |
-| Manual DB reset workflow | `✅` | Explicit script added; no automatic test reset |
-| Main + secondary active-instance read paths | `✅` | User-facing, retrieval-facing, and most repository-wide read paths now exclude `MISSING` instances by default |
-| Incremental git sync parity with lifecycle/content model | `✅` | Incremental sync now uses lifecycle-aware instance/content handling and restores downstream enrichment stages |
-| Parse/embed orchestration via `changed_content_ids` | `✅` | Discovery, parsing, embedding, and incremental sync now use content IDs as the durable refresh contract |
-| Shared-chunk association model | `✅` | `ChunkSymbolLink` landed and transitional chunk/embed ownership columns are removed from ORM/runtime |
-| Optional Alembic baseline coherence | `✅` | Baseline migration file now matches the current instance/content schema |
-| Full unit + integration validation on reset schema | `✅` | Current worktree passes `pytest tests/ -v -rs` against reset local Postgres |
+| Manual DB reset workflow | `✅` | Explicit script; no automatic test reset |
+| Active-instance read paths | `✅` | User-facing surfaces exclude `MISSING` by default |
+| Incremental git sync parity | `✅` | Lifecycle-aware instance/content handling |
+| Parse/embed orchestration via `changed_content_ids` | `✅` | Content IDs as durable refresh contract |
+| Shared-chunk association model | `✅` | `ChunkSymbolLink` landed |
+| Python import relations | `✅` | `IMPORTS` edges for intra-repo imports |
+| Python call relations | `✅` | `CALLS` edges with AST-compatible strategy |
+| Python endpoint extraction | `✅` | FastAPI/Flask baseline |
+| Python retrieval quality | `✅` | **Validated 2026-03-21: 6/6 checks passed** |
+| Java semantic depth | `🚧` | Not yet at target for imports/calls/endpoints/dependencies |
+| Parser platform consolidation | `🧭` | Capability matrix integration, strategy interfaces |
+
+## Python Retrieval Quality Validation Results (2026-03-21)
+
+**Status: ✅ ALL6 CHECKS PASSED**
+
+Validation script: `scripts/validate_python_retrieval.py`
+Results file: `docs/python_retrieval_validation_results.json`
+
+### Benchmark Details
+
+| Check | Status | Details |
+| --- | --- | --- |
+| Import Relations | ✅ | 45 symbols with expected import patterns, all have context |
+| Call Relations | ✅ | 268 function/method symbols with call relationships |
+| Endpoint Extraction | ✅ | 53 ENDPOINT symbols, 302 potential route handlers |
+| Chunk Coherence | ✅ | Results found for 4/4 semantic queries |
+| Call-Neighbor Context | ✅ | 10 helper/utility functions with context available |
+| Python Symbol Coverage | ✅ | 2754 Python symbols: 913 functions, 1131 methods, 323 classes |
+
+### Symbol Distribution
+
+| Kind | Count |
+| --- | --- |
+| METHOD | 1131 |
+| FUNCTION | 913 |
+| CLASS | 323 |
+| VARIABLE | 256 |
+| CONSTANT | 63 |
+| ENDPOINT | 53 |
+| MODULE | 15 |
 
 ## Remaining Work
 
-The branch is no longer blocked on schema decoupling, broad lifecycle correctness, or the shared-chunk association cut.
+### Near-Term (Phase 2 continuation)
 
-The remaining work is primarily:
+1. **Python import parsing expansion**
+   - Aliases, structured import records
+   - Wildcard typing, dynamic imports
+   - `__init__.py` re-export semantics
 
-1. close branch-status docs and handover text so they match the shipped runtime
-2. finish the dedicated test-database defaults/documentation cleanup already in the worktree
-3. optionally continue canonical naming cleanup where local variables still use `FileInstance as File`
-4. resume the next product track after Phase 1 closure
+2. **Java benchmark validation**
+   - Confirm current Java breadth on shared repos
+   - Close any exposed edge cases
 
-### Write-path / lifecycle callers that remain intentionally explicit
+### Medium-Term (Phase 3+)
 
-These paths still query `File`/`FileInstance`, but they are not evidence of unfinished user-facing lifecycle filtering:
+1. **Parser platform consolidation**
+   - Capability matrix integration
+   - Strategy interfaces
+   - Fallback chunking policy
 
-1. `src/workers/inventory_worker.py`
-2. `src/workers/file_worker.py`
-3. `src/workers/file_lifecycle_worker.py`
-4. `src/workers/sync_worker.py`
-5. `src/workers/incremental_sync.py`
+2. **GitHub/provider-neutral discovery workflows**
 
-### Notable distinction
-
-Do **not** blindly add `active_file_filter()` everywhere.
-
-The remaining high-value work is no longer another schema/model cut. The branch runtime is already past that point. The remaining branch-specific work is documentation closure plus the test-environment cleanup already in progress.
-
-## Highest-Priority Next Work
-
-1. **Close the Phase 1 docs explicitly**
-   - mark shared-chunk association and reset-schema validation as landed everywhere
-   - collapse stale references that still describe chunk/embed ownership removal as future work
-
-2. **Finalize the dedicated test DB defaults**
-   - keep `TEST_DATABASE_URL` distinct from `DATABASE_URL`
-   - make the devcontainer defaults and test harness expectations consistent across docs, setup helpers, and tests
-
-3. **Resume the next product track**
-   - treat Phase 1 as complete once docs and test-env cleanup are aligned
-   - shift roadmap focus back to Java semantic parity, parser-platform work, or the incremental indexing contract
+3. **Per-repository credentials and polling controls**
 
 ## Recommended Next Session Plan
 
@@ -258,101 +148,32 @@ The remaining high-value work is no longer another schema/model cut. The branch 
    - `/workspaces/axon-mcp/docs/axon-no-csharp-findings-and-plan.md`
    - `/workspaces/axon-mcp/docs/workspace-notes.md`
    - `/workspaces/axon-mcp/docs/SESSION_HANDOVER.md`
-   - `docs/architecture/file_instance_content_dedup_proposal.md`
-   - `docs/architecture/file_instance_content_implementation_plan.md`
+   - `docs/architecture/python_quick_win_and_semantic_search_plan.md`
 
 2. Stay on branch:
-   - `file-instance-content-separation`
+   - `master`
 
 3. Before running DB-backed tests:
-   - the devcontainer already exports `DATABASE_URL` and `TEST_DATABASE_URL`
-   - `TEST_DATABASE_URL` should remain pointed at the dedicated `indexer_test` database
-   - use the explicit manual reset only if needed:
+   ```bash
+   cd /workspaces/axon-mcp/axon-src
+   source /home/vscode/.venv-dev/bin/activate
+   # DB env vars are already set by devcontainer
+   pytest tests/ -v -rs
+   ```
 
-```bash
-cd /workspaces/axon-mcp/axon-src
-source /home/vscode/.venv-dev/bin/activate
-export DEBUG=false
-python scripts/reset_db.py --yes --use-test-db
-```
-
-4. Then continue with:
-   - doc closure and test-environment cleanup if still open
-   - otherwise the next roadmap track after Phase 1
+4. Continue with:
+   - Java benchmark validation
+   - Python import parsing expansion
+   - Parser platform consolidation
 
 ## Useful References
 
-- Branch: `file-instance-content-separation`
-- HEAD: `49ec883`
+- Branch: `master`
+- HEAD: `179f312`
 - Design doc: `docs/architecture/file_instance_content_dedup_proposal.md`
 - Implementation plan: `docs/architecture/file_instance_content_implementation_plan.md`
+- Python plan: `docs/architecture/python_quick_win_and_semantic_search_plan.md`
 - Manual DB reset: `scripts/reset_db.py`
 - Core model file: `src/database/models.py`
-- Run finalization: `src/workers/sync_worker.py`
-- File upsert path: `src/workers/file_worker.py`
-- Cleanup worker: `src/workers/file_lifecycle_worker.py`
-- Lifecycle tests: `tests/integration/test_file_lifecycle_transitions.py`
-- Sync lifecycle tests: `tests/integration/test_sync_lifecycle_transitions.py`
 
 This handover is the canonical continuation point for the next session.
-
-## Continuation Point
-
-Phase 1 runtime work is effectively complete on this branch:
-
-1. lifecycle/query correctness is landed
-2. incremental git parity is restored
-3. shared-chunk association is landed
-4. reset-schema full-suite validation is green
-
-The remaining branch-local work is:
-
-1. close stale docs/handover text
-2. finish dedicated test-database defaults/documentation cleanup
-3. then move to the next roadmap priority outside the file/content-separation slice
-- `chunks.file_instance_id`
-- `embeddings.symbol_id`
-
-These fields make one chunk effectively belong to one symbol/file context, which conflicts with the intended “many file instances can reuse one chunk” model.
-
-### Next required implementation plan
-
-1. Add a shared association layer such as `chunk_symbol_links`:
-   - `chunk_id`
-   - `symbol_id`
-   - optional `file_instance_id` shortcut
-2. Update chunk creation in `src/extractors/knowledge_extractor.py`:
-   - create/reuse chunks by content identity
-   - create association rows per symbol instance
-3. Update retrieval/search/snippet callers that currently use `Chunk.symbol_id`:
-   - `src/api/services/search_service.py`
-   - `src/mcp_server/tools/symbols.py`
-   - `src/utils/call_graph_traversal.py`
-4. Update embedding ownership expectations:
-   - `src/vector_store/pgvector_store.py`
-   - decide whether `Embedding.symbol_id` becomes derived/optional or is removed
-5. Only then remove runtime reliance on `Chunk.file_instance_id`
-
-### Recommendation
-
-Treat the branch as having completed the lifecycle/query-correctness wave. Start the next session with the schema/model cut above rather than continuing to chase more read-path filters.
-
-### Parallel Retrieval Coordination Note
-
-The next session also needs to account for retrieval / semantic-search work being
-developed in parallel.
-
-Practical rule:
-
-1. Prefer changes that can merge cleanly with the parallel retrieval branch.
-2. Avoid unnecessary edits in retrieval-owned files unless the schema/model cut
-   truly requires them.
-3. When changes are required in shared retrieval surfaces, prefer narrow
-   compatibility-preserving edits over broad refactors.
-4. Use `/workspaces/axon-mcp/axon-src/docs/architecture/retrieval_parallel_alignment_note.md`
-   as the coordination contract before touching retrieval-adjacent code.
-
-Goal:
-
-- keep the upcoming shared-chunk schema work mergeable with the parallel retrieval
-  improvements with as little conflict as possible.

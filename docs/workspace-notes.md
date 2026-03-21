@@ -13,7 +13,7 @@
 - Project source: `/workspaces/axon-mcp/axon-src`
 - External inspiration only (read-only): `/workspaces/axon-mcp/external-inspiration/kilocode`
 
-## Current Fork Status (2026-03-11)
+## Current Fork Status (2026-03-20)
 
 `✅` active/ready, `🚧` incomplete/partial.
 
@@ -21,7 +21,9 @@
 | --- | --- | --- |
 | C# / Roslyn runtime removal | `✅` | Removed from current runtime path. |
 | Language focus alignment | `✅` | Python, Java, JS/TS/Vue, docs/config. |
-| Java semantic depth | `🚧` | Baseline parsing works; semantic edges are ongoing work. |
+| File instance/content separation | `✅` | Merged into master. All Phase 1 work complete. |
+| Python semantic depth | `🚧` | Import/call/endpoint extraction landed; retrieval quality ongoing. |
+| Java semantic depth | `🚧` | Baseline parsing works; semantic edges need benchmark validation. |
 
 ## Dev Environment Baseline
 
@@ -84,25 +86,31 @@ Axon product roadmap view:
 
 - `/workspaces/axon-mcp/axon-src/docs/AXON_ANALYSIS_AND_ROADMAP.md`
 
+Session handover:
+
+- `/workspaces/axon-mcp/docs/SESSION_HANDOVER.md`
+
 If there is any mismatch between docs, treat the wrapper doc above as the operational baseline for this workspace.
 
-## Session Handoff (2026-03-11)
+## Session Handoff (2026-03-20)
 
 `✅` done, `🧭` next action, `🔥` risk.
 
 | Topic | Status | Details |
 | --- | --- | --- |
-| Documentation style convergence | `✅` | Wrapper + Axon docs now use icon-key style with meaningful icons and no legend labels. |
-| Axon docs commit | `✅` | `axon-src` commit: `959e95a` (`docs: add parser capability matrix and align roadmap/docs style`). |
-| Parser capability matrix | `✅` | Added at `/workspaces/axon-mcp/axon-src/docs/architecture/parser_capability_matrix.md`. |
-| Next implementation step | `🧭` | Start code work on language strategy interfaces (import/call/dependency extraction). |
-| Main delivery risk | `🔥` | Java semantic precision may require parser metadata expansion before high-confidence relation extraction. |
+| File instance/content separation | `✅` | Merged into master. All Phase 1 work complete. |
+| Python import/call/endpoint extraction | `✅` | Quick wins landed in `179f312`. |
+| Python retrieval quality | `🧭` | Chunk coherence and benchmark validation. |
+| Java benchmark validation | `🧭` | Confirm breadth on shared repos. |
+| Parser platform consolidation | `🧭` | Capability matrix integration, strategy interfaces. |
+| Main delivery risk | `🔥` | Java semantic precision may require parser metadata expansion. |
 
 Next session startup order:
 1. Read `/workspaces/axon-mcp/AGENTS.md`.
-2. Read `/workspaces/axon-mcp/docs/axon-no-csharp-findings-and-plan.md`.
-3. Read `/workspaces/axon-mcp/axon-src/docs/AXON_ANALYSIS_AND_ROADMAP.md`.
-4. Read `/workspaces/axon-mcp/axon-src/docs/architecture/parser_capability_matrix.md`.
+2. Read `/workspaces/axon-mcp/docs/SESSION_HANDOVER.md`.
+3. Read `/workspaces/axon-mcp/docs/axon-no-csharp-findings-and-plan.md`.
+4. Read `/workspaces/axon-mcp/axon-src/docs/AXON_ANALYSIS_AND_ROADMAP.md`.
+5. Read `/workspaces/axon-mcp/axon-src/docs/architecture/parser_capability_matrix.md`.
 
 ## Common Commands
 
