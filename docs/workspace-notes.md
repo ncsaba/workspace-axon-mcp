@@ -13,6 +13,19 @@
 - Project source: `/workspaces/axon-mcp/axon-src`
 - External inspiration only (read-only): `/workspaces/axon-mcp/external-inspiration/kilocode`
 
+## Git Remotes (`axon-src`)
+
+| Remote | URL | Role | Fetch from dev-container |
+| --- | --- | --- | --- |
+| `origin` | `git@github.com:ncsaba/Axon.MCP.Server.git` | Our fork (`javampire`, `charlie`, `public-release`) | No (SSH), fetch from host |
+| `mapp` | `git@github.com:Mapp-Labs/mapp-axon-mcp.git` | Mapp-Labs mirror (`master`, `javampire`) | No (SSH), fetch from host |
+| `upstream` | `https://github.com/ali-kamali/Axon.MCP.Server.git` | Original project, read-only (default branch `public-release`) | Yes (HTTPS) |
+
+- Fork point from `upstream/public-release`: `523db87` (2026-03-05).
+- As of 2026-10-14, upstream has only Dependabot version bumps since the fork (`black`, `pyjwt`, `flatted`, `axios` merged; 14 Dependabot branches open). No feature work to absorb.
+- Re-add on a fresh clone: `git remote add upstream https://github.com/ali-kamali/Axon.MCP.Server.git`
+- Check upstream drift: `git fetch upstream && git log --oneline $(git merge-base javampire upstream/public-release)..upstream/public-release`
+
 ## Current Fork Status (2026-03-20)
 
 `✅` active/ready, `🚧` incomplete/partial.
