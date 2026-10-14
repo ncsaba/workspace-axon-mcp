@@ -4,20 +4,24 @@ All paths below are relative to `/workspaces/axon-mcp/axon-src` unless otherwise
 
 ## Session Focus
 
-This session continues from the completed architecture work on:
+Last updated: 2026-10-14 (housekeeping session, no code changes).
 
-- **file instance / file content separation** ✅ MERGED
-- **run-ID-based missing-file tracking** ✅ MERGED
-- **soft deletion + TTL cleanup** ✅ MERGED
-- **shared-chunk association** ✅ MERGED
+Active focus: **multi-branch / multi-developer tracking** (see [Phase 2.5 status](#phase-25-multi-branch-tracking-status)).
+Language support work is paused.
 
 Current branch:
 
-- `master`
+- `javampire` (owned by us; tracked on both `origin` and `mapp` remotes)
 
 Current HEAD:
 
-- `179f312` - `feat: land python parity quick wins`
+- `6388af6` - `feat: add Python re-exports and Git tracking foundations` (2026-09-30)
+
+Branch hygiene (verified 2026-10-14):
+
+- All other local and remote-tracking branches, including Charlie Albietz's `origin/charlie`, are fully contained in `javampire`.
+- `master` / `mapp/master` stay at `179f312`; `javampire` is ahead by the Python import/re-export work, Charlie's repo connection/registration work, and the Git tracking foundation.
+- Remotes cannot be fetched from inside the dev-container (no SSH access); fetch from the host.
 
 ## What Was Completed (Previous Sessions)
 
@@ -36,7 +40,7 @@ All work from the `file-instance-content-separation` branch has been merged into
 8. **Alembic baseline alignment** - Matches current instance/content schema
 9. **Test DB defaults alignment** - `TEST_DATABASE_URL` distinct from `DATABASE_URL`
 
-### Phase 2: Python Semantic Parity 🚧 IN PROGRESS
+### Phase 2: Python Semantic Parity ✅ BASELINE COMPLETE (further work paused)
 
 Recent commits landed Python quick wins:
 
@@ -85,8 +89,13 @@ Integration tests added:
 | Python call relations | `✅` | `CALLS` edges with AST-compatible strategy |
 | Python endpoint extraction | `✅` | FastAPI/Flask baseline |
 | Python retrieval quality | `✅` | **Validated 2026-03-21: 6/6 checks passed** |
-| Java semantic depth | `🚧` | Not yet at target for imports/calls/endpoints/dependencies |
-| Parser platform consolidation | `🧭` | Capability matrix integration, strategy interfaces |
+| Python structured imports + `__init__.py` re-exports | `✅` | Landed 2026-03-22 |
+| Repo connections + easy registration/deletion (Charlie) | `✅` | In `javampire` since 2026-03-20 |
+| Multi-branch baseline data (Phase 2.5.0) | `✅` | `workspace-axon-mcp` + `jverein` indexed, DB dump archived |
+| Git tracking schema (commit/tree-file/branch/tag) | `🚧` | Tables, migration and backfill landed; runtime sync/indexing does not write them yet |
+| User registry (Keycloak sync) | `🧭` | No `users` table yet |
+| Java semantic depth | `🚧` | Paused. Not yet at target for imports/calls/endpoints/dependencies |
+| Parser platform consolidation | `🧭` | Paused. Capability matrix integration, strategy interfaces |
 
 ## Python Retrieval Quality Validation Results (2026-03-21)
 
@@ -234,65 +243,198 @@ pytest tests/unit/test_python_import_records.py -v
 
 ---
 
+## Session 2026-03-22: Python `__init__.py` Re-export Semantics ✅ COMPLETE
+
+### Completed Work
+
+1. **Re-export Resolver Module** (`src/extractors/reexport_resolver.py`)
+   - `ReexportEntry` dataclass for individual re-export tracking
+   - `PackageReexportMap` for per-package re-export organization
+   - `ReexportResolver` class for parsing and resolving re-exports
+   - Handles: basic re-exports, aliased re-exports, `__all__` filtering
+   - Handles: relative imports (`.module`, `..sibling`)
+   - Handles: wildcard re-exports (`from .module import *`)
+
+2. **Import Resolution Integration** (`src/extractors/import_resolver.py`)
+   - `PythonImportExtractionStrategy` now accepts optional `ReexportResolver`
+   - Added `_resolve_via_reexport()` fallback method
+   - `ImportRelationshipBuilder` creates and passes `ReexportResolver`
+   - Resolution chain: direct lookup → re-export check
+
+3. **Unit Tests** (`tests/unit/test_reexport_resolver.py`)
+   - 20+ test cases covering all re-export patterns
+   - Tests for `__all__` filtering behavior
+   - Tests for nested package resolution
+   - Tests for edge cases (empty files, circular references)
+
+4. **Integration Tests** (`tests/integration/test_python_reexport_relationships.py`)
+   - Basic re-export relationship validation
+   - Aliased re-export relationship validation
+   - Nested package re-export validation
+   - `__all__` filtering validation
+
+### Files Created/Modified
+
+| File | Change |
+|------|--------|
+| `src/extractors/reexport_resolver.py` | NEW - Core re-export resolution module |
+| `src/extractors/import_resolver.py` | Integrated re-export resolver |
+| `tests/unit/test_reexport_resolver.py` | NEW - comprehensive unit tests |
+| `tests/integration/test_python_reexport_relationships.py` | NEW - integration tests |
+
+### Re-export Patterns Now Supported
+
+| Pattern | Example | Captured |
+|---------|---------|----------|
+| Basic re-export | `from .module import Class` | ✅ |
+| Aliased re-export | `from .module import Old as New` | ✅ |
+| Multi-symbol | `from .module import A, B, C` | ✅ |
+| Wildcard | `from .module import *` | ✅ |
+| `__all__` filtering | `__all__ = ["Public"]` | ✅ |
+| Relative parent | `from ..sibling import X` | ✅ |
+
+### Validation Commands
+
+```bash
+cd /workspaces/axon-mcp/axon-src
+source /home/vscode/.venv-dev/bin/activate
+pytest tests/unit/test_reexport_resolver.py -v
+pytest tests/integration/test_python_reexport_relationships.py -v
+```
+
+---
+
+## Session 2026-03-22: Focus Shift to Multi-Branch and Multi-Developer Tracking 🧭 NEW FOCUS
+
+### Direction Change
+
+**Language support improvements are now paused.** The new focus is on:
+
+1. **Multi-branch indexing** - Track and index symbols per branch/version
+2. **Local changes tracking** - Push local changes to user's branch
+3. **Multi-developer collaboration** - User registry, branch isolation, cross-version search
+
+### Existing Foundation
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| User tracking | 🚧 Partial | `AuditLog` has `user_id` but no user management |
+| Git branch support | ✅ | Repositories cloned with full git history |
+| Per-user isolation | 🛑 Missing | No tenant/user isolation in data model |
+| Cross-version search | 🛑 Missing | Search is per-repository, not per-branch |
+| Personal access tokens | ✅ | `PersonalAccessToken` table exists |
+| Keycloak auth | ✅ | REST API + MCP token architecture documented |
+
+### Reference Documentation
+
+- Feature ideas: [`docs/feature-ideas/multi-user-mcp-collaboration.md`](../docs/feature-ideas/multi-user-mcp-collaboration.md)
+- Auth architecture: [`docs/architecture/authentication_and_mcp_token_plan.md`](docs/architecture/authentication_and_mcp_token_plan.md)
+- Keycloak guide: [`docs/guides/authentication_keycloak_and_mcp_tokens.md`](docs/guides/authentication_keycloak_and_mcp_tokens.md)
+
+### Data Model Changes Needed (Superseded)
+
+The initial `users` / `user_branches` / `branch_name` column sketch from this session was replaced by the approved commit/tree-based model in `/workspaces/axon-mcp/plans/multi_branch_brainstorm_baseline.md`. See the current status below.
+
+---
+
+## Sessions 2026-03-23 to 2026-09-30: Phase 2.5 Foundations
+
+Summary of commit `6388af6` and the docs created with it:
+
+1. **Phase 2.5.0 baseline data** ✅ - `workspace-axon-mcp` (Python, 11 files) and `jverein` (Java, 826 files) fully indexed with embeddings; dump archived at `.archive/baseline_test_data_complete_20260323.dump`. Summary: `docs/validation/phase_2.5.0_completion_summary.md`.
+2. **Git tracking schema** 🚧 - `git_commits`, `tree_files`, `branches`, `tags` tables (`src/database/models/git_tracking.py`), migration `a1b2c3d4e5f1_add_git_tracking_tables.py` with backfill of commits, default branches and tree files.
+3. **Models package split** ✅ - `src/database/models.py` became the `src/database/models/` package (`models_base.py` + `git_tracking.py`); legacy imports still work.
+4. **Python re-exports** ✅ - committed as part of the same change (see 2026-03-22 section).
+5. **Design docs** - `docs/architecture/multi_branch_tracking_implementation_plan.md`, `docs/architecture/phase_2.5.1_technical_design.md`.
+
+Wrapper-side planning notes (in `/workspaces/axon-mcp/plans/`):
+
+| File | Content |
+| --- | --- |
+| `multi_branch_brainstorm_baseline.md` | Approved data-model decisions for Phase 2.5 |
+| `early-exit-safety-analysis.md` | Skipping `CallGraphStep` / `ImportResolutionStep` on unchanged reruns (~36s of ~38s) |
+| `python-import-parsing-expansion-plan.md` | Python import parsing plan (implemented 2026-03-22) |
+
+## Session 2026-10-14: Housekeeping ✅ COMPLETE
+
+- Verified that no branch (including `origin/charlie`) has commits missing from `javampire`.
+- Renumbered Phase 2.5 in `docs/architecture/multi_branch_tracking_implementation_plan.md` to match the code: **2.5.1 = commit/branch/tag/TREE_FILE schema**, **2.5.2 = user registry**. Added per-phase status markers.
+- Added `jverein/` (local Java baseline clone) to the wrapper `.gitignore`.
+- Refreshed this handover and `docs/axon-no-csharp-findings-and-plan.md`.
+
+## Phase 2.5 Multi-Branch Tracking Status
+
+`✅` done, `🚧` partial, `🧭` next/planned.
+
+| Phase | Focus | Status |
+| --- | --- | --- |
+| 2.5.0 | Baseline test data | `✅` |
+| 2.5.1 | Commit, branch, tag, TREE_FILE schema + backfill | `🚧` sync path does not write the new tables yet |
+| 2.5.2 | User registry + Keycloak sync | `🧭` |
+| 2.5.3 | FILE_INSTANCE migration onto TREE_FILE (drop legacy columns, query switch) | `🧭` |
+| 2.5.4 | LOCAL_STAGE for local changes | `🧭` |
+| 2.5.5 | Delta compression | `🧭` |
+| 2.5.6 | Cross-version search API + MCP tools | `🧭` |
+
+Known inconsistencies to resolve when work resumes:
+
+- `src/database/models/git_tracking.py` comment says LOCAL_STAGE is "Phase 2.5.2"; the plan has it as 2.5.4.
+- The design says COMMIT is repository-agnostic, but `git_commits.repository_id` exists (nullable) in the migration.
+
+---
+
 ## Remaining Work
 
-### Near-Term (Phase 2 continuation)
+### Language Support (Paused)
 
-1. **Python `__init__.py` re-export semantics** (Phase 3 in plan)
-   - Track re-exports in `__init__.py` files
-   - Build re-export map per package
-   - Update import resolution to check re-export map
+1. **Java benchmark validation** - Confirm current Java breadth on shared repos
+2. **Parser platform consolidation** - Capability matrix integration, strategy interfaces
+3. **Corpus refresh** - Re-materialize chunks to pick up Python import/context improvements
 
-2. **Java benchmark validation**
-   - Confirm current Java breadth on shared repos
-   - Close any exposed edge cases
+### Active Work (Multi-Branch)
 
-### Medium-Term (Phase 3+)
+1. **Finish Phase 2.5.1** - Write commits/branches/tags/tree files from the repository sync path
+2. **Phase 2.5.2** - User registry with Keycloak sync
+3. **Phase 2.5.3** - Move FILE_INSTANCE reads onto TREE_FILE
+4. **Optional perf item** - Early exit for unchanged reruns (`plans/early-exit-safety-analysis.md`)
 
-1. **Parser platform consolidation**
-   - Capability matrix integration
-   - Strategy interfaces
-   - Fallback chunking policy
-
-2. **GitHub/provider-neutral discovery workflows**
-
-3. **Per-repository credentials and polling controls**
+---
 
 ## Recommended Next Session Plan
 
 1. Read:
    - `/workspaces/axon-mcp/AGENTS.md`
    - `/workspaces/axon-mcp/docs/development-model.md`
-   - `/workspaces/axon-mcp/docs/axon-no-csharp-findings-and-plan.md`
-   - `/workspaces/axon-mcp/docs/workspace-notes.md`
    - `/workspaces/axon-mcp/docs/SESSION_HANDOVER.md`
-   - `docs/architecture/python_quick_win_and_semantic_search_plan.md`
+   - `/workspaces/axon-mcp/plans/multi_branch_brainstorm_baseline.md`
+   - `axon-src/docs/architecture/multi_branch_tracking_implementation_plan.md`
+   - `axon-src/docs/architecture/phase_2.5.1_technical_design.md`
 
 2. Stay on branch:
-   - `master`
+   - `javampire`
 
 3. Before running DB-backed tests:
    ```bash
    cd /workspaces/axon-mcp/axon-src
    source /home/vscode/.venv-dev/bin/activate
    # DB env vars are already set by devcontainer
+   alembic upgrade head
    pytest tests/ -v -rs
    ```
 
-4. Continue with:
-   - Java benchmark validation
-   - Python import parsing expansion
-   - Parser platform consolidation
+4. Decide the next increment: finish 2.5.1 sync wiring (dependency-first) or start 2.5.2 user registry.
 
 ## Useful References
 
-- Branch: `master`
-- HEAD: `179f312`
-- Design doc: `docs/architecture/file_instance_content_dedup_proposal.md`
-- Implementation plan: `docs/architecture/file_instance_content_implementation_plan.md`
+- Branch: `javampire`
+- HEAD: `6388af6`
+- Multi-branch plan: `docs/architecture/multi_branch_tracking_implementation_plan.md`
+- Phase 2.5.1 design: `docs/architecture/phase_2.5.1_technical_design.md`
+- Baseline summary: `docs/validation/phase_2.5.0_completion_summary.md`
+- File instance/content design: `docs/architecture/file_instance_content_dedup_proposal.md`
 - Python plan: `docs/architecture/python_quick_win_and_semantic_search_plan.md`
 - Alembic migrations: `alembic upgrade head` (production path)
 - Manual DB reset: `scripts/reset_db.py` (dev/test environments only)
-- Core model file: `src/database/models.py`
+- Core model package: `src/database/models/` (`models_base.py`, `git_tracking.py`)
 
 This handover is the canonical continuation point for the next session.

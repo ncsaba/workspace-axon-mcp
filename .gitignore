@@ -1,11 +1,17 @@
 # Dev container generated files
 .devcontainer/devcontainer.json
+.devcontainer/local.env
 .devcontainer/vscode-server
+.devcontainer/vscodium-server
+# Only holds the bash_history seed copied into the services volume on first init
 .devcontainer/services
 
 # Mounted source directories (local paths)
 axon-src
 external-inspiration
+
+# Local clones used as indexing baseline data
+jverein
 
 # Setup config (may contain local paths)
 .workspace-config.json

@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-"${SCRIPT_DIR}/init_postgres.sh"
+# Expects init_postgres.sh to have run (init_all.sh does this before start_dev_services.sh starts services).
 
 SERVICES_DIR="/home/vscode/services"
 PGDATA_DEFAULT="${SERVICES_DIR}/postgres/17/main"

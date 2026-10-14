@@ -1,13 +1,14 @@
 {
   "name": "Axon MCP Workspace",
-  "image": "devcontainer/axon-mcp:latest",
+  "image": "localhost/devcontainer/axon-mcp:latest",
   "remoteUser": "vscode",
   "containerUser": "vscode",
   "updateRemoteUserUID": true,
   "workspaceFolder": "/workspaces/axon-mcp",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/axon-mcp,type=bind",
-  "remoteEnv": {
+  "containerEnv": {
     "SHELL": "/bin/bash",
+    "TZ": "Europe/Berlin",
     "PGHOST": "/tmp/pgsocket",
     "PGPORT": "5432",
     "PGUSER": "indexer",
@@ -17,25 +18,41 @@
     "DATABASE_URL": "postgresql+asyncpg://indexer:indexer@localhost:5432/indexer",
     "TEST_DATABASE_URL": "postgresql+asyncpg://indexer:indexer@localhost:5432/indexer_test",
     "REDIS_PORT": "6379",
-    "REDIS_BIND_ADDRESS": "0.0.0.0"
+    "REDIS_BIND_ADDRESS": "0.0.0.0",
+    "PROMETHEUS_MULTIPROC_DIR": "/home/vscode/services/prometheus/multiproc",
+    "ATLASSIAN_API_TOKEN": "${localEnv:ATLASSIAN_API_TOKEN}",
+    "ATLASSIAN_EMAIL": "${localEnv:ATLASSIAN_EMAIL}",
+    "JENKINS_TOKEN": "${localEnv:JENKINS_TOKEN}",
+    "JENKINS_USER": "${localEnv:USER}",
+    "SONAR_TOKEN": "${localEnv:SONAR_TOKEN}"
   },
-  "initializeCommand": "mkdir -p .devcontainer/vscode-server .devcontainer/services && touch .devcontainer/services/bash_history",
+  "initializeCommand": "touch .devcontainer/local.env",
   "mounts": [
+    "source=axon-mcp-vscodium-server,target=/tmp/.vscodium-server,type=volume",
+    "source=axon-mcp-services,target=/home/vscode/services,type=volume",
     "source=axon-mcp-venv,target=/home/vscode/.venv-dev,type=volume",
     "source=axon-mcp-cache,target=/home/vscode/.cache,type=volume",
     "source=axon-mcp-config,target=/home/vscode/.config,type=volume",
-    "source=${localWorkspaceFolder}/.devcontainer/vscode-server,target=/home/vscode/.vscode-server,type=bind",
-    "source=${localWorkspaceFolder}/.devcontainer/services,target=/home/vscode/services,type=bind",
-    "source=${localWorkspaceFolder}/.devcontainer/services/bash_history,target=/home/vscode/.bash_history,type=bind"{{ codex_mount }}{{ axon_src_mount }}{{ kilocode_mount }}
+    "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind",
+    "source=${localEnv:HOME}/.gitignore_global,target=/home/vscode/.gitignore_global,type=bind",
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude.json,target=/home/vscode/.claude.json.host,type=bind",
+    "source=${localEnv:HOME}/.mapp,target=/home/vscode/.mapp,type=bind,consistency=cached"{{ codex_mount }}{{ axon_src_mount }}{{ extra_mounts }}
   ],
-  "postCreateCommand": "bash .devcontainer/scripts/bootstrap.sh && bash .devcontainer/scripts/init_postgres.sh && bash .devcontainer/scripts/init_redis.sh",
-  "postStartCommand": "bash .devcontainer/scripts/start_postgres.sh && bash .devcontainer/scripts/start_redis.sh",
   "runArgs": [
     "--label", "devcontainer.project=axon-mcp",
     "--label", "devcontainer.workspace=axon-mcp",
+    "--name", "axon-mcp",
+    "--env-file", "${localWorkspaceFolder}/.devcontainer/local.env",
+    "--cpus=4",
+    "--memory=4g",
+    "--shm-size=512m",
     "--interactive",
     "--tty"
   ],
+  "postCreateCommand": "bash .devcontainer/scripts/init_all.sh --bootstrap",
+  "postStartCommand": "bash .devcontainer/scripts/start_dev_services.sh",
+  "waitFor": "postStartCommand",
   "portsAttributes": {
     ".*": {
       "onAutoForward": "ignore"
@@ -57,6 +74,9 @@
     },
     "6379": {
       "label": "Redis"
+    },
+    "9090": {
+      "label": "Prometheus"
     }
   },
   "forwardPorts": [
@@ -64,22 +84,20 @@
     6379,
     5173,
     8001,
-    8080
+    8080,
+    9090
   ],
   "customizations": {
     "vscode": {
       "settings": {
+        "window.title": "${dirty}axon-mcp${separator}[${remoteName}]",
         "terminal.integrated.defaultProfile.linux": "bash",
         "terminal.integrated.shell.linux": "/bin/bash",
         "python.defaultInterpreterPath": "/home/vscode/.venv-dev/bin/python",
         "python.terminal.activateEnvironment": true,
         "python.terminal.activateEnvInCurrentTerminal": true
       },
-      "extensions": [
-        "ms-python.python",
-        "ms-python.vscode-pylance",
-        "dbaeumer.vscode-eslint"{{ codex_extension }}{{ kilocode_extension }}{{ optional_extensions }}
-      ]
+      "extensions": []
     }
   }
 }

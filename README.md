@@ -9,9 +9,9 @@ Before setting up this workspace, ensure you have the following installed:
 
 | Requirement | Description | Installation |
 |-------------|-------------|--------------|
-| **Container Engine** | Docker or Podman | [Docker](https://docs.docker.com/get-docker/) or [Podman](https://podman.io/getting-started/installation) |
-| **VS Code** | Visual Studio Code | [Download VS Code](https://code.visualstudio.com/) |
-| **Dev Containers Extension** | VS Code extension for containers | Install via VS Code Extensions marketplace |
+| **Container Engine** | Apple Container (preferred), Docker or Podman, reachable as `docker` | Apple Container is wired in via the `docker_bridge.py` shim |
+| **VSCodium** | Editor | [Download VSCodium](https://vscodium.com/) |
+| **Dev Containers Extension** | Editor extension for containers | Install from Open VSX |
 | **Python 3.11+** | For running the setup script | [Python Downloads](https://www.python.org/downloads/) |
 | **Git** | Version control | [Git Downloads](https://git-scm.com/downloads) |
 
@@ -32,10 +32,10 @@ python setup_workspace.py
 
 The script will guide you through configuration options interactively.
 
-### 3. Open in VS Code
+### 3. Open in VSCodium
 
 ```bash
-code .
+codium .
 ```
 
 When prompted, click **"Reopen in Container"** or run the command:
@@ -79,11 +79,13 @@ python setup_workspace.py --force-build
 
 ### Image Build Behavior
 
-The script automatically checks if the container image `devcontainer/axon-mcp:latest` already exists:
+The script automatically checks if the container image `localhost/devcontainer/axon-mcp:latest` already exists:
 
 - **Image exists**: Skips build (use `--force-build` to rebuild)
-- **Image missing**: Builds automatically using detected container engine
-- **Build command**: `cd .devcontainer && <engine> build -t devcontainer/axon-mcp:latest -f Dockerfile .`
+- **Image missing**: Builds by running [`.devcontainer/build-image.sh`](.devcontainer/build-image.sh)
+- **Build script**: stages only the `Dockerfile` and Node tarballs under `~/tmp/container-build` and builds from there,
+  then tags `localhost/devcontainer/axon-mcp:latest` plus the bare alias `devcontainer/axon-mcp:latest`.
+  The `localhost/` tag is the one `devcontainer.json` references (required by Apple Container's exact-string image lookup).
 
 ## Configuration Options
 
@@ -95,23 +97,20 @@ The path to your local Axon.MCP.Server repository. This directory will be mounte
 
 ### AI Assistant Integration
 
-| Assistant | Extension | Description |
-|-----------|-----------|-------------|
-| **Codex** | `chatgpt.chatgpt-vscode` | OpenAI Codex assistant integration. Optionally mounts `~/.codex` config folder. |
-| **Kilo Code** | `kilocode.kilo-code` | Kilo Code AI assistant extension |
+| Assistant | Description |
+|-----------|-------------|
+| **Codex** | Optionally mounts the `~/.codex` config folder. |
 
-### Optional VS Code Extensions
+No editor extensions are preinstalled; install what you need inside the container.
 
-| Extension | ID | Description |
-|-----------|-----|-------------|
-| Highlight | `fabiospampinato.vscode-highlight` | Highlight words and patterns in editor |
-| Markdown Preview | `shd101wyy.markdown-preview-enhanced` | Enhanced Markdown preview with diagrams and math |
-| Rainbow CSV | `mechatroner.rainbow-csv` | CSV/TSV file highlighting and alignment |
-| Bookmarks | `alefragnani.Bookmarks` | Bookmark lines in files for quick navigation |
+### Extra Mounts
+
+Optional additional bind mounts, e.g. a kilocode checkout mounted read-only at
+`/workspaces/axon-mcp/external-inspiration/kilocode`. In config files, list them under `extra_mounts`.
 
 ### Config File Format
 
-For non-interactive mode, create a JSON config file:
+For non-interactive mode, create a JSON config file (`.workspace-config.json` is gitignored for this purpose):
 
 ```json
 {
@@ -120,43 +119,23 @@ For non-interactive mode, create a JSON config file:
     "codex": {
       "enabled": true,
       "path": "~/.codex"
-    },
-    "kilocode": {
-      "enabled": false
     }
   },
-  "optional_extensions": [
-    "fabiospampinato.vscode-highlight",
-    "shd101wyy.markdown-preview-enhanced"
+  "extra_mounts": [
+    {
+      "source": "/path/to/kilocode",
+      "target": "/workspaces/axon-mcp/external-inspiration/kilocode",
+      "readonly": true
+    }
   ]
 }
 ```
 
 ## Container Engine Support
 
-The setup script automatically detects and validates your container engine.
-
-### Docker Support
-
-- **Detection**: Checks if `docker` command is available and daemon is running
-- **Validation**: Runs `docker info` to verify daemon connectivity
-- **Troubleshooting**: 
-  - macOS/Windows: Start Docker Desktop
-  - Linux: Run `sudo systemctl start docker`
-
-### Podman Support
-
-- **Detection**: Checks if `podman` command is available
-- **Validation**: 
-  - Linux: Runs `podman info` (rootless mode supported)
-  - macOS/Windows: Checks for running machine via `podman machine list`
-- **Troubleshooting**:
-  - macOS/Windows: Run `podman machine start`
-  - Linux: Ensure Podman is properly configured for rootless operation
-
-### Engine Selection Priority
-
-When both Docker and Podman are available and running, Docker is preferred by default.
+The setup script and `build-image.sh` call `docker` and do no engine detection of their own.
+On this workspace's hosts `docker` is wired to Apple Container (via `docker_bridge.py`); a real
+Docker or Podman `docker` CLI works too.
 
 ## Project Structure
 
@@ -164,9 +143,11 @@ When both Docker and Podman are available and running, Docker is preferred by de
 axon-mcp/
 ├── .devcontainer/           # Dev Container configuration
 │   ├── Dockerfile           # Container image definition
+│   ├── build-image.sh       # Staged image build
 │   ├── devcontainer.json    # Container configuration (generated)
+│   ├── prometheus/          # Prometheus config (git-tracked)
 │   ├── templates/           # Configuration templates
-│   └── scripts/             # Initialization scripts
+│   └── scripts/             # Lifecycle and service scripts
 ├── axon-src/                # Mounted Axon source (read-write)
 ├── external-inspiration/    # Reference code (read-only)
 │   └── kilocode/            # Kilocode parser patterns
@@ -192,7 +173,9 @@ The dev container includes the following features:
 - **devcontainer-foundation** - Base container setup
 - **workspace-persistence-mounts** - Persistent workspace storage
 - **python-venv-setup** - Python virtual environment at `/home/vscode/.venv-dev`
-- **vscode-customizations** - VS Code settings and extensions
+- **vscode-customizations** - Editor settings (no preinstalled extensions)
+- **devcontainer-init-resilience** - Non-aborting init steps with a warnings log
+- **staged-image-build** - Minimal build context, `localhost/` image tag
 - **postgresql-readiness** - PostgreSQL database
 - **redis-readiness** - Redis cache
 
@@ -226,8 +209,28 @@ Initialization scripts:
 - `.devcontainer/scripts/init_redis.sh`
 - `.devcontainer/scripts/start_redis.sh`
 
+### Prometheus
+
+| Setting | Value |
+|---------|-------|
+| Port | `9090` |
+| Config | `.devcontainer/prometheus/prometheus.yml` |
+
+## Container Lifecycle
+
+| Hook | Script | Does |
+|------|--------|------|
+| `postCreateCommand` | `init_all.sh --bootstrap` | Init steps plus venv/npm bootstrap |
+| `postStartCommand` | `start_dev_services.sh` | `init_all.sh`, then starts Postgres, Redis, Prometheus |
+
+- `init_all.sh` runs each step via `run_step`: a failing step is logged to
+  `/home/vscode/services/log/init_warnings.log` and shown as a banner in new terminals, but never aborts startup.
+- `stop_dev_services.sh` / `check_dev_services.sh` stop or check all services.
+- Service state, logs and editor server data live in named volumes (`axon-mcp-services`,
+  `axon-mcp-vscodium-server`), not host folders. `~/.bash_history` is a symlink into the services volume,
+  seeded once from `.devcontainer/services/bash_history` if present.
+
 ## Notes
 
-- First container create runs `.devcontainer/scripts/bootstrap.sh`.
 - Python venv path: `/home/vscode/.venv-dev`.
-- Dev Container uses fixed image `devcontainer/axon-mcp:latest` (no dynamic build at startup).
+- Dev Container uses fixed image `localhost/devcontainer/axon-mcp:latest` (no dynamic build at startup).

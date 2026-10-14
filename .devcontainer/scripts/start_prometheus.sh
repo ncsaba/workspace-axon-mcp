@@ -4,7 +4,7 @@
 set -e
 
 PROMETHEUS_DATA_DIR="${HOME}/services/prometheus"
-PROMETHEUS_CONFIG_DIR="/workspaces/axon-mcp/.devcontainer/services/prometheus"
+PROMETHEUS_CONFIG_DIR="/workspaces/axon-mcp/.devcontainer/prometheus"
 PROMETHEUS_LOG="${HOME}/services/log/prometheus.log"
 PROMETHEUS_PID="${HOME}/services/prometheus/prometheus.pid"
 

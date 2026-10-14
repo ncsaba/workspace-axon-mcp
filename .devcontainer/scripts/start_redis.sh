@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-"${SCRIPT_DIR}/init_redis.sh"
+# Expects init_redis.sh to have run (init_all.sh does this before start_dev_services.sh starts services).
 
 REDIS_HOME="${REDIS_HOME:-${HOME:-/home/vscode}}"
 REDIS_SERVICES_DIR="${REDIS_SERVICES_DIR:-${REDIS_HOME}/services}"

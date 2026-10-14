@@ -137,15 +137,20 @@ In a normal devcontainer shell you usually only need:
 source /home/vscode/.venv-dev/bin/activate
 ```
 
-Manual schema reset, when explicitly needed:
+Schema management:
 
 ```bash
 cd /workspaces/axon-mcp/axon-src
 source /home/vscode/.venv-dev/bin/activate
+
+# Production path (backwards-compatible migrations):
+alembic upgrade head
+
+# Dev/test environments only (fresh schema reset):
 python scripts/reset_db.py --yes --use-test-db
 ```
 
-This is intentionally manual-only and is not part of the test harness. The test harness creates and drops schema in `TEST_DATABASE_URL`, so it must remain separate from `DATABASE_URL`.
+**Production deployments must use Alembic migrations.** The reset script is for dev/test environments only. The test harness creates and drops schema in `TEST_DATABASE_URL`, so it must remain separate from `DATABASE_URL`.
 
 Agent policy reminder:
 - Run tests only outside the default sandbox (escalated mode).

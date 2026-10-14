@@ -3,7 +3,8 @@
 Workspace Setup Script for Axon MCP Dev Container
 
 This script personalizes the devcontainer configuration for each developer.
-It generates a devcontainer.json file from a template based on user preferences.
+It generates a devcontainer.json file from a template based on user preferences,
+then builds the container image via .devcontainer/build-image.sh.
 
 Usage:
     python setup_workspace.py [--non-interactive] [--config CONFIG_FILE]
@@ -12,53 +13,14 @@ Usage:
 import argparse
 import json
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
 
 
-# Extension definitions
-BASE_EXTENSIONS = [
-    "ms-python.python",
-    "ms-python.vscode-pylance",
-    "dbaeumer.vscode-eslint",
-]
-
-OPTIONAL_EXTENSIONS = {
-    "highlight": {
-        "id": "fabiospampinato.vscode-highlight",
-        "description": "Highlight words and patterns in editor",
-    },
-    "markdown-preview": {
-        "id": "shd101wyy.markdown-preview-enhanced",
-        "description": "Enhanced Markdown preview with diagrams and math",
-    },
-    "rainbow-csv": {
-        "id": "mechatroner.rainbow-csv",
-        "description": "CSV/TSV file highlighting and alignment",
-    },
-    "bookmarks": {
-        "id": "alefragnani.Bookmarks",
-        "description": "Bookmark lines in files for quick navigation",
-    },
-}
-
-AI_ASSISTANT_EXTENSIONS = {
-    "codex": {
-        "extension_id": "openai.chatgpt",
-        "mount_path": "~/.codex",
-        "mount_target": "/home/vscode/.codex",
-        "description": "OpenAI Codex assistant integration",
-    },
-    "kilocode": {
-        "extension_id": "kilocode.kilo-code",
-        "mount_path": None,  # No folder to mount
-        "mount_target": None,
-        "description": "Kilo Code AI assistant extension",
-    },
-}
+IMAGE_NAME = "localhost/devcontainer/axon-mcp:latest"
+WORKSPACE_TARGET = "/workspaces/axon-mcp"
 
 
 def get_workspace_root() -> Path:
@@ -75,6 +37,11 @@ def get_template_path() -> Path:
 def get_output_path() -> Path:
     """Get the path for the generated devcontainer.json."""
     return get_workspace_root() / ".devcontainer" / "devcontainer.json"
+
+
+def get_build_script_path() -> Path:
+    """Get the path to the staged image build script."""
+    return get_workspace_root() / ".devcontainer" / "build-image.sh"
 
 
 def expand_path(path_str: str) -> str:
@@ -96,21 +63,29 @@ def format_mount_source_path(path_str: str) -> str:
     return json.dumps(normalized)[1:-1]
 
 
+def format_bind_mount(source: str, target: str, readonly: bool = False) -> str:
+    """Format a bind mount entry, including the leading separator for the template."""
+    entry = f"source={format_mount_source_path(expand_path(source))},target={target},type=bind"
+    if readonly:
+        entry += ",readonly"
+    return f',\n    "{entry}"'
+
+
 def validate_path(path_str: str, must_exist: bool = True, create_if_missing: bool = False) -> Optional[Path]:
     """
     Validate a path string.
-    
+
     Args:
         path_str: The path string to validate
         must_exist: If True, the path must exist
         create_if_missing: If True, create the directory if it doesn't exist
-    
+
     Returns:
         Path object if valid, None otherwise
     """
     expanded = expand_path(path_str)
     path = Path(expanded)
-    
+
     if must_exist and not path.exists():
         if create_if_missing:
             try:
@@ -122,7 +97,7 @@ def validate_path(path_str: str, must_exist: bool = True, create_if_missing: boo
         else:
             print(f"  Error: Path does not exist: {path}")
             return None
-    
+
     return path
 
 
@@ -147,369 +122,145 @@ def prompt_path(question: str, must_exist: bool = True, create_if_missing: bool 
         if not response:
             print("  This field is required. Please enter a path.")
             continue
-        
+
         path = validate_path(response, must_exist=must_exist, create_if_missing=create_if_missing)
         if path is not None:
             return path
-
-
-def prompt_optional_extensions() -> list[str]:
-    """Prompt for optional extensions selection."""
-    print("\nOptional Extensions:")
-    print("-" * 40)
-    
-    selected = []
-    for key, ext_info in OPTIONAL_EXTENSIONS.items():
-        if prompt_yes_no(f"  Install {ext_info['description']}?", default=True):
-            selected.append(ext_info["id"])
-    
-    return selected
 
 
 def prompt_ai_assistants() -> dict:
     """Prompt for AI assistant configuration."""
     print("\nAI Assistant Integration:")
     print("-" * 40)
-    
+
     config = {
         "codex": {"enabled": False, "path": None},
-        "kilocode": {"enabled": False},
     }
-    
+
     # Codex
-    if prompt_yes_no("  Enable OpenAI Codex integration?", default=False):
+    if prompt_yes_no("  Mount OpenAI Codex config folder?", default=False):
         config["codex"]["enabled"] = True
         codex_path = input(f"  Codex config path [~/.codex]: ").strip()
         if not codex_path:
             codex_path = "~/.codex"
         config["codex"]["path"] = expand_path(codex_path)
-    
-    # Kilo Code
-    if prompt_yes_no("  Enable Kilo Code integration?", default=False):
-        config["kilocode"]["enabled"] = True
-    
+
     return config
 
 
-def detect_container_engine() -> str:
-    """
-    Detect which container engine is available and running.
-    
-    Checks for Docker and Podman availability. If both are available,
-    checks which one has a running daemon/machine.
-    
-    Returns:
-        The engine name ("docker" or "podman") if available and running.
-    
-    Raises:
-        SystemExit: If no container engine is available or running.
-    """
-    engines_available = []
-    
-    # Check for Docker
-    docker_path = shutil.which("docker")
-    if docker_path:
-        engines_available.append("docker")
-    
-    # Check for Podman
-    podman_path = shutil.which("podman")
-    if podman_path:
-        engines_available.append("podman")
-    
-    if not engines_available:
-        print("\n❌ Error: No container engine found!")
-        print("-" * 40)
-        print("This workspace requires a container engine to run the devcontainer.")
-        print("\nPlease install one of the following:")
-        print("  • Docker: https://docs.docker.com/get-docker/")
-        print("  • Podman: https://podman.io/getting-started/installation")
-        sys.exit(1)
-    
-    # If only one engine is available, check if it's running
-    if len(engines_available) == 1:
-        engine = engines_available[0]
-        if engine == "docker":
-            if _is_docker_running():
-                print(f"✅ Detected container engine: Docker")
-                return "docker"
-            else:
-                _print_docker_not_running_error()
-                sys.exit(1)
-        else:  # podman
-            if _is_podman_running():
-                print(f"✅ Detected container engine: Podman")
-                return "podman"
-            else:
-                _print_podman_not_running_error()
-                sys.exit(1)
-    
-    # Both engines are available - check which one is running
-    docker_running = _is_docker_running()
-    podman_running = _is_podman_running()
-    
-    if docker_running and podman_running:
-        # Both running - prefer Docker
-        print("✅ Detected container engines: Docker and Podman (using Docker)")
-        return "docker"
-    elif docker_running:
-        print("✅ Detected container engine: Docker")
-        return "docker"
-    elif podman_running:
-        print("✅ Detected container engine: Podman")
-        return "podman"
-    else:
-        # Neither is running
-        print("\n❌ Error: No container engine is running!")
-        print("-" * 40)
-        print("Both Docker and Podman are installed but neither is running.")
-        print("\nPlease start one of them:")
-        print("  • Docker: Start Docker Desktop or the Docker daemon")
-        print("  • Podman: Run 'podman machine start' (on macOS/Windows)")
-        sys.exit(1)
-
-
-def _is_docker_running() -> bool:
-    """Check if Docker daemon is running."""
-    try:
-        result = subprocess.run(
-            ["docker", "info"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        return result.returncode == 0
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        return False
-
-
-def _is_podman_running() -> bool:
-    """Check if Podman machine/daemon is running."""
-    try:
-        # On Linux, Podman can run rootless without a machine
-        # Check if podman can communicate with the container runtime
-        result = subprocess.run(
-            ["podman", "info"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if result.returncode == 0:
-            return True
-        
-        # On macOS/Windows, check for a running machine
-        result = subprocess.run(
-            ["podman", "machine", "list"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if result.returncode == 0:
-            # Check if any machine is running (look for "running" in output)
-            return "running" in result.stdout.lower()
-        
-        return False
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        return False
-
-
-def _print_docker_not_running_error():
-    """Print error message when Docker is not running."""
-    print("\n❌ Error: Docker is installed but not running!")
+def prompt_extra_mounts() -> list[dict]:
+    """Prompt for optional extra bind mounts (e.g. read-only reference code)."""
+    print("\nExtra Mounts:")
     print("-" * 40)
-    print("Please start Docker:")
-    print("  • On macOS/Windows: Start Docker Desktop")
-    print("  • On Linux: Run 'sudo systemctl start docker'")
-    print("             Or run 'sudo dockerd &' for manual start")
+
+    mounts = []
+    if prompt_yes_no("  Mount a kilocode checkout as read-only external inspiration?", default=False):
+        kilocode_path = prompt_path("  Path to the kilocode checkout", must_exist=True)
+        mounts.append({
+            "source": str(kilocode_path),
+            "target": f"{WORKSPACE_TARGET}/external-inspiration/kilocode",
+            "readonly": True,
+        })
+    return mounts
 
 
-def _print_podman_not_running_error():
-    """Print error message when Podman is not running."""
-    print("\n❌ Error: Podman is installed but not running!")
-    print("-" * 40)
-    print("Please start Podman:")
-    print("  • On macOS/Windows: Run 'podman machine start'")
-    print("  • On Linux: Podman should work rootless without a machine")
-    print("              Check if podman is properly configured")
-
-
-def image_exists(engine: str, image_name: str) -> bool:
+def build_container_image(force_rebuild: bool = False) -> bool:
     """
-    Check if a container image already exists locally.
-    
-    Args:
-        engine: The container engine to use ("docker" or "podman")
-        image_name: The image name to check (e.g., "devcontainer/axon-mcp:latest")
-    
-    Returns:
-        True if the image exists, False otherwise
-    """
-    try:
-        result = subprocess.run(
-            [engine, "image", "inspect", image_name],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        return result.returncode == 0
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        return False
+    Build the container image via .devcontainer/build-image.sh.
 
+    The build script stages a minimal build context and relies on `docker`
+    being wired to the right engine (Apple Container via docker_bridge.py,
+    Docker or Podman), so no engine detection happens here.
 
-def build_container_image(
-    engine: str,
-    dockerfile_path: Path,
-    image_name: str,
-    context_path: Optional[Path] = None,
-    force_rebuild: bool = False,
-) -> bool:
-    """
-    Build a container image using the detected container engine.
-    
-    Args:
-        engine: The container engine to use ("docker" or "podman")
-        dockerfile_path: Path to the Dockerfile
-        image_name: The tag for the built image (e.g., "devcontainer/axon-mcp:latest")
-        context_path: Build context directory (defaults to dockerfile parent)
-        force_rebuild: If True, rebuild even if image exists
-    
     Returns:
         True if build succeeded or image already exists, False otherwise
-    
-    Raises:
-        FileNotFoundError: If the Dockerfile doesn't exist
     """
-    if not dockerfile_path.exists():
-        print(f"\n❌ Error: Dockerfile not found: {dockerfile_path}")
+    build_script = get_build_script_path()
+    if not build_script.exists():
+        print(f"\n❌ Error: Build script not found: {build_script}")
         return False
-    
-    if context_path is None:
-        context_path = dockerfile_path.parent
-    
-    if not context_path.exists():
-        print(f"\n❌ Error: Build context not found: {context_path}")
-        return False
-    
-    # Check if image already exists
-    if not force_rebuild and image_exists(engine, image_name):
-        print(f"✅ Image already exists: {image_name}")
+
+    if not force_rebuild and image_exists(IMAGE_NAME):
+        print(f"✅ Image already exists: {IMAGE_NAME}")
         print("   Use --force-build to rebuild")
         return True
-    
-    print(f"\nBuilding container image: {image_name}")
-    print(f"  Engine: {engine}")
-    print(f"  Dockerfile: {dockerfile_path}")
-    print(f"  Context: {context_path}")
+
+    print(f"\nRunning: {build_script}")
     print("-" * 40)
-    
-    # Build the command - run from context directory with -f pointing to Dockerfile
-    # The Dockerfile already handles TARGETARCH internally via automatic platform detection
-    cmd = [
-        engine,
-        "build",
-        "-t", image_name,
-        "-f", "Dockerfile",  # Use relative name since we cd to context
-        ".",  # Current directory (context)
-    ]
-    
-    print(f"Running: cd {context_path} && {' '.join(cmd)}")
-    print("-" * 40)
-    
     try:
-        # Run the build from the context directory
-        result = subprocess.run(
-            cmd,
-            cwd=str(context_path),
-            check=False,  # Don't raise on non-zero exit
-        )
-        
-        if result.returncode == 0:
-            print("-" * 40)
-            print(f"✅ Successfully built image: {image_name}")
-            return True
-        else:
-            print("-" * 40)
-            print(f"\n❌ Build failed with exit code: {result.returncode}")
-            print("\nTroubleshooting tips:")
-            print("  • Check the Dockerfile for syntax errors")
-            print("  • Ensure all required base images are accessible")
-            print("  • Try building manually with:")
-            print(f"    cd {context_path} && {engine} build -t {image_name} -f Dockerfile .")
-            return False
-            
-    except FileNotFoundError:
-        print(f"\n❌ Error: {engine} command not found!")
-        print("The container engine was detected but is no longer available.")
-        return False
+        result = subprocess.run(["bash", str(build_script)], check=False)
     except KeyboardInterrupt:
         print("\n\n⚠️  Build interrupted by user")
         return False
-    except Exception as e:
-        print(f"\n❌ Unexpected error during build: {e}")
+
+    if result.returncode == 0:
+        print("-" * 40)
+        print(f"✅ Successfully built image: {IMAGE_NAME}")
+        return True
+
+    print("-" * 40)
+    print(f"\n❌ Build failed with exit code: {result.returncode}")
+    print(f"   Retry manually with: {build_script}")
+    return False
+
+
+def image_exists(image_name: str) -> bool:
+    """Check if a container image already exists locally."""
+    try:
+        result = subprocess.run(
+            ["docker", "image", "inspect", image_name],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         return False
 
 
 def generate_devcontainer(
     axon_src_path: str,
     ai_config: dict,
-    optional_extensions: list[str],
+    extra_mounts: list[dict],
 ) -> str:
     """
     Generate devcontainer.json content from template.
-    
+
     Args:
         axon_src_path: Path to the Axon source directory
         ai_config: AI assistant configuration dict
-        optional_extensions: List of optional extension IDs
-    
+        extra_mounts: List of {"source", "target", "readonly"} bind mounts
+
     Returns:
         Generated JSON string
     """
     template_path = get_template_path()
-    
+
     if not template_path.exists():
         print(f"Error: Template file not found: {template_path}")
         sys.exit(1)
-    
+
     with open(template_path, "r") as f:
         template_content = f.read()
-    
+
     # Build mount strings
     codex_mount = ""
-    if ai_config["codex"]["enabled"]:
-        codex_path = format_mount_source_path(ai_config["codex"]["path"])
-        codex_mount = f',\n    "source={codex_path},target=/home/vscode/.codex,type=bind"'
+    codex = ai_config.get("codex", {})
+    if codex.get("enabled"):
+        codex_mount = format_bind_mount(codex["path"], "/home/vscode/.codex")
 
-    axon_src_mount_path = format_mount_source_path(axon_src_path)
-    axon_src_mount = f',\n    "source={axon_src_mount_path},target=/workspaces/axon-mcp/axon-src,type=bind"'
-    
-    kilocode_mount = ""
-    if ai_config["kilocode"]["enabled"]:
-        # Kilocode has no folder to mount, just extension
-        kilocode_mount = ""
-    
-    # Build extension strings
-    codex_extension = ""
-    if ai_config["codex"]["enabled"]:
-        codex_extension = ',\n        "chatgpt.chatgpt-vscode"'
-    
-    kilocode_extension = ""
-    if ai_config["kilocode"]["enabled"]:
-        kilocode_extension = ',\n        "kilocode.kilo-code"'
-    
-    # Optional extensions
-    optional_extensions_str = ""
-    if optional_extensions:
-        ext_lines = [f',\n        "{ext_id}"' for ext_id in optional_extensions]
-        optional_extensions_str = "".join(ext_lines)
-    
+    axon_src_mount = format_bind_mount(axon_src_path, f"{WORKSPACE_TARGET}/axon-src")
+
+    extra_mounts_str = "".join(
+        format_bind_mount(m["source"], m["target"], m.get("readonly", False))
+        for m in extra_mounts
+    )
+
     # Replace placeholders
     content = template_content.replace("{{ codex_mount }}", codex_mount)
     content = content.replace("{{ axon_src_mount }}", axon_src_mount)
-    content = content.replace("{{ kilocode_mount }}", kilocode_mount)
-    content = content.replace("{{ codex_extension }}", codex_extension)
-    content = content.replace("{{ kilocode_extension }}", kilocode_extension)
-    content = content.replace("{{ optional_extensions }}", optional_extensions_str)
-    
+    content = content.replace("{{ extra_mounts }}", extra_mounts_str)
+
     # Validate JSON
     try:
         json.loads(content)
@@ -518,7 +269,7 @@ def generate_devcontainer(
         print("Content preview:")
         print(content[:500])
         sys.exit(1)
-    
+
     return content
 
 
@@ -527,33 +278,33 @@ def run_interactive() -> dict:
     print("=" * 60)
     print("Axon MCP Workspace Setup")
     print("=" * 60)
-    
+
     # Step 1: Axon source path (mandatory)
     print("\nStep 1: Axon Source Directory")
     print("-" * 40)
     print("This is the path to your local Axon.MCP.Server repository.")
-    print("This directory will be mounted as /workspaces/axon-mcp/axon-src")
-    
+    print(f"This directory will be mounted as {WORKSPACE_TARGET}/axon-src")
+
     axon_src_path = prompt_path(
         "Enter the path to your Axon source directory",
         must_exist=True,
         create_if_missing=False,
     )
-    
+
     # Step 2: AI Assistants
     print("\nStep 2: AI Assistant Integration")
     print("-" * 40)
     ai_config = prompt_ai_assistants()
-    
-    # Step 3: Optional extensions
-    print("\nStep 3: Optional Extensions")
+
+    # Step 3: Extra mounts
+    print("\nStep 3: Extra Mounts")
     print("-" * 40)
-    optional_extensions = prompt_optional_extensions()
-    
+    extra_mounts = prompt_extra_mounts()
+
     return {
         "axon_src_path": str(axon_src_path),
         "ai_config": ai_config,
-        "optional_extensions": optional_extensions,
+        "extra_mounts": extra_mounts,
     }
 
 
@@ -562,23 +313,24 @@ def run_non_interactive(config_file: Optional[str] = None) -> dict:
     if config_file:
         with open(config_file, "r") as f:
             config = json.load(f)
+        config.setdefault("ai_config", {"codex": {"enabled": False, "path": None}})
+        config.setdefault("extra_mounts", [])
         return config
-    
+
     # Use defaults for CI/CD
     print("Running in non-interactive mode with defaults...")
-    
+
     axon_src = os.environ.get("AXON_SRC_PATH", "")
     if not axon_src:
         print("Error: AXON_SRC_PATH environment variable must be set in non-interactive mode")
         sys.exit(1)
-    
+
     return {
         "axon_src_path": axon_src,
         "ai_config": {
             "codex": {"enabled": False, "path": None},
-            "kilocode": {"enabled": False},
         },
-        "optional_extensions": [ext["id"] for ext in OPTIONAL_EXTENSIONS.values()],
+        "extra_mounts": [],
     }
 
 
@@ -611,92 +363,77 @@ def main():
         action="store_true",
         help="Force rebuild even if image already exists",
     )
-    
+
     args = parser.parse_args()
-    
-    # Detect container engine early (required for devcontainer setup)
-    print("\n" + "=" * 60)
-    print("Container Engine Detection")
-    print("=" * 60)
-    container_engine = detect_container_engine()
-    
+
     # Gather configuration
     if args.non_interactive:
         config = run_non_interactive(args.config)
     else:
         config = run_interactive()
-    
+
     # Generate devcontainer.json
     print("\n" + "=" * 60)
     print("Generating devcontainer.json...")
     print("=" * 60)
-    
+
     content = generate_devcontainer(
         axon_src_path=config["axon_src_path"],
         ai_config=config["ai_config"],
-        optional_extensions=config["optional_extensions"],
+        extra_mounts=config["extra_mounts"],
     )
-    
+
     if args.dry_run:
         print("\nGenerated content (dry run):")
         print("-" * 40)
         print(content)
         return
-    
+
     # Write output
     output_path = get_output_path()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     with open(output_path, "w") as f:
         f.write(content)
-    
+
     print(f"\n✅ Generated: {output_path}")
-    
+
     # Build container image
     build_success = True  # Assume success if skipped
     if not args.skip_build:
         print("\n" + "=" * 60)
         print("Building Container Image")
         print("=" * 60)
-        
-        dockerfile_path = get_workspace_root() / ".devcontainer" / "Dockerfile"
-        image_name = "devcontainer/axon-mcp:latest"
-        
-        build_success = build_container_image(
-            engine=container_engine,
-            dockerfile_path=dockerfile_path,
-            image_name=image_name,
-            force_rebuild=args.force_build,
-        )
+        build_success = build_container_image(force_rebuild=args.force_build)
     else:
         print("\n⏭️  Skipping container image build (--skip-build)")
-    
+
     # Summary
     print("\nConfiguration Summary:")
     print("-" * 40)
-    print(f"  Container engine: {container_engine}")
+    print(f"  Image: {IMAGE_NAME}")
     print(f"  Axon source: {config['axon_src_path']}")
     print(f"  Codex enabled: {config['ai_config']['codex']['enabled']}")
     if config['ai_config']['codex']['enabled']:
         print(f"    Codex path: {config['ai_config']['codex']['path']}")
-    print(f"  Kilo Code enabled: {config['ai_config']['kilocode']['enabled']}")
-    print(f"  Optional extensions: {len(config['optional_extensions'])} selected")
-    
+    for mount in config["extra_mounts"]:
+        mode = " (read-only)" if mount.get("readonly") else ""
+        print(f"  Extra mount: {mount['source']} -> {mount['target']}{mode}")
+
     print("\nNext Steps:")
     print("-" * 40)
     if build_success and not args.skip_build:
         print("✅ Container image built successfully!")
-        print("1. Open the workspace in VS Code")
+        print("1. Open the workspace in VSCodium")
         print("2. When prompted, click 'Reopen in Container'")
     elif args.skip_build:
         print("1. Build the dev container image (if not already built):")
-        print(f"   cd .devcontainer && {container_engine} build -t devcontainer/axon-mcp:latest -f Dockerfile .")
-        print("2. Open the workspace in VS Code")
+        print(f"   {get_build_script_path()}")
+        print("2. Open the workspace in VSCodium")
         print("3. When prompted, click 'Reopen in Container'")
     else:
         print("⚠️  Container image build failed. Please fix the errors and retry:")
-        print(f"   cd .devcontainer && {container_engine} build -t devcontainer/axon-mcp:latest -f Dockerfile .")
-        print("\nAlternatively, you can open VS Code and let it build the image automatically.")
+        print(f"   {get_build_script_path()}")
 
 
 if __name__ == "__main__":
